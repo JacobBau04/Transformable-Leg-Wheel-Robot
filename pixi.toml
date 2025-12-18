@@ -1,0 +1,10 @@
+[workspace]
+authors = ["anthonyjclark <anthonyjclark@gmail.com>"]
+channels = ["conda-forge"]
+name = "Transformable-Leg-Wheel-Robot"
+platforms = ["linux-64"]
+version = "0.1.0"
+
+[tasks]
+
+[dependencies]
