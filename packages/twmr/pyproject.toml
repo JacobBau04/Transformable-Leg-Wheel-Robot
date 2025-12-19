@@ -1,7 +1,7 @@
 [project]
 name = "twmr"
 version = "0.1.0"
-description = "Add your description here"
+description = "MuJoCo Playground environment for training our transformable wheel mobile robot."
 readme = "README.md"
 authors = [
     { name = "anthonyjclark", email = "anthonyjclark@gmail.com" }
@@ -15,6 +15,3 @@ twmr = "twmr:main"
 [build-system]
 requires = ["uv_build>=0.9.18,<0.10.0"]
 build-backend = "uv_build"
-
-[tool.ruff]
-line-length = 96

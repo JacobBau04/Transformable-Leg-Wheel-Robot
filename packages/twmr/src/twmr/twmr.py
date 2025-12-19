@@ -5,6 +5,7 @@ from ml_collections import config_dict
 from mujoco import MjModel, mjx  # type: ignore
 from mujoco.mjx import Model as MjxModel
 from mujoco_playground import MjxEnv, State, dm_control_suite
+from mujoco_playground._src import mjx_env
 from mujoco_playground._src.dm_control_suite import common
 
 ConfigOverridesDict = dict[str, str | int | list]
@@ -48,11 +49,17 @@ class TransformableWheelMobileRobot(MjxEnv):
         super().__init__(config, config_overrides)
 
         self._xml_path = _XML_PATH.as_posix()
+        model_xml = _XML_PATH.read_text()
         self._model_assets = common.get_assets()
-        self._mj_model = MjModel.from_xml_string(_XML_PATH.read_text(), self._model_assets)
-        self._mjx_model = mjx.put_model()
+        self._mj_model: MjModel = MjModel.from_xml_string(model_xml, self._model_assets)
+        self._mjx_model = mjx.put_model(self._mj_model, impl=self._config.impl)  # type: ignore
+        self._mj_model.opt.timestep = self.sim_dt
 
-    def reset(self, rng: JaxArray) -> State: ...
+        # TODO: figure out vision with the madrona batch renderer
+
+    def reset(self, rng: JaxArray) -> State:
+        data = mjx_env.make_data()
+        return State(data, obs, reward, done, metrics, info)
 
     def step(self, state: State, action: JaxArray) -> State: ...
 
