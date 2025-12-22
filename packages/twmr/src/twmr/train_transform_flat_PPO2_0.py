@@ -1,7 +1,7 @@
 
 """
 
-
+TO RUN (from root): python3 packages/twmr/src/twmr/train_transform_flat_PPO2_0.py
 
 PPO training for transformable leg-wheel robot on a flat plane,
 with trans_wheel_robo2_0.xml:
@@ -105,6 +105,27 @@ LEG0_JOINTS: List[str] = [
 
 from pathlib import Path
 
+def _find_repo_root(start: Path) -> Path:
+    """Walk upwards until we find a README.md (repo root marker)."""
+    for p in [start, *start.parents]:
+        if (p / "README.md").is_file():
+            return p
+    # Fallback: two levels up from this file (keeps old behavior if README not found)
+    return start.parents[2] if len(start.parents) >= 2 else start
+
+
+# Results directory at repo root (same level as README.md)
+_REPO_ROOT = _find_repo_root(Path(__file__).resolve().parent)
+RESULTS_DIR = _REPO_ROOT / "results"
+RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _results_path(path_like) -> str:
+    """Return an absolute path inside RESULTS_DIR unless an absolute path is given."""
+    p = Path(path_like)
+    return str(p if p.is_absolute() else (RESULTS_DIR / p))
+
+
 def _resolve_xml_path(xml_path: str) -> str:
     p = Path(xml_path)
 
@@ -112,7 +133,7 @@ def _resolve_xml_path(xml_path: str) -> str:
     if p.is_file():
         return str(p.resolve())
 
-    # Otherwise, look relative to THIS python file's directory
+    # Otherwise, look relative to this python file's directory
     here = Path(__file__).resolve().parent
     candidates = [
         here / p.name,                  # same folder as this script
@@ -376,6 +397,7 @@ class TransformableWheelFlatEnv:
                 break
 
         renderer.close()
+        video_path = _results_path(video_path)
         media.write_video(video_path, frames, fps=fps)
 
         # compute and return this trial's +x distance
@@ -449,6 +471,7 @@ def make_policy_value_fn(model, action_scale: jnp.ndarray):
 
 
 def save_trial_x_plot(trial_labels: List[str], trial_x_deltas: List[float], out_path: str = "transform_ppo_trial_x_distance.png"):
+    out_path = _results_path(out_path)
     plt.figure(figsize=(7, 4))
     xs = np.arange(len(trial_x_deltas))
     plt.plot(xs, trial_x_deltas, marker="o")
@@ -673,7 +696,7 @@ def train_ppo(
                 x_delta_trial = env.render_episode(
                     lambda p, o, r, deterministic: policy_value_fn(p, o, r, deterministic),
                     params,
-                    video_path=video_name,
+                    video_path=_results_path(video_name),
                     deterministic=True,
                     fps=1.0 / env.ctrl_dt,
                 )
@@ -689,7 +712,7 @@ def train_ppo(
     x_delta_trial = env.render_episode(
         lambda p, o, r, deterministic: policy_value_fn(p, o, r, deterministic),
         params,
-        video_path="transform_ppo_final_best.mp4",
+        video_path=_results_path("transform_ppo_final_best.mp4"),
         deterministic=True,
         fps=1.0 / env.ctrl_dt,
     )
@@ -705,7 +728,7 @@ def train_ppo(
     plt.title("PPO Training Progress (Transformable Wheel Robot on Flat Ground)")
     plt.grid(True)
     plt.tight_layout()
-    plt.savefig("transform_ppo_rewards.png", dpi=150)
+    plt.savefig(_results_path("transform_ppo_rewards.png"), dpi=150)
     plt.close()
     print("Saved training curve to transform_ppo_rewards.png")
 
@@ -716,7 +739,7 @@ def train_ppo(
     plt.title("Distance Traveled in +x per PPO Update")
     plt.grid(True)
     plt.tight_layout()
-    plt.savefig("transform_ppo_x_distance.png", dpi=150)
+    plt.savefig(_results_path("transform_ppo_x_distance.png"), dpi=150)
     plt.close()
     print("Saved +x distance curve to transform_ppo_x_distance.png")
 
@@ -739,7 +762,7 @@ def main():
     start_time = time.time()
     _params, returns_history, x_delta_history = train_ppo(
         env,
-        total_timesteps=10_000,
+        total_timesteps=4_000,
         rollout_steps=1024,
         gamma=0.99,
         gae_lambda=0.95,
