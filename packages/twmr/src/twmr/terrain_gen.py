@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """
-generate_bumpy_hfield.py
 
 Generates a MuJoCo heightfield as a bumpy terrain, with
 controllable spatial frequency statistics (mean & std, in cycles/meter).
