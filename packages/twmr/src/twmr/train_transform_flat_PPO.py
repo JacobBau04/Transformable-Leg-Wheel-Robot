@@ -10,7 +10,7 @@ with trans_wheel_robo2_0.xml:
       *4 leg0 extension torque motors
   - coupling leg1 and leg2 to leg0
 
-
+edit
 Reward:
   forward_reward = vx
   ctrl_cost = 0.0005 * sum(action^2)
