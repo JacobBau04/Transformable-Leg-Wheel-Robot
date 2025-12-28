@@ -1,7 +1,8 @@
 # Transformable Wheel Robot
 
 ## DEMO
-![Robot climbing over a step](assets/robot_step.gif)
+<img src="assets/robot_step.gif" alt="Robot climbing over a step" style="width: 100px; max-width: 100%;">
+
 
 
 ## Git Workflow
