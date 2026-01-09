@@ -1,8 +1,14 @@
 # Transformable Wheel Robot
 
 ## DEMO
+
 <img src="assets/robot_step.gif" alt="Robot climbing over a step" style="width: 400px; max-width: 100%;">
 
+Run the demo training script with the following (assuming you have the environment setup done (see below) and you have the training script.):
+
+```bash
+./.venv/bin/python train_jax_ppo.py --env_name="TransformableWheelMobileRobot"
+```
 
 
 ## Git Workflow
