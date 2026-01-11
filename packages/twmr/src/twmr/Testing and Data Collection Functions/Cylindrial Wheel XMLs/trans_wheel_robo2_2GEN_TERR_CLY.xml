@@ -43,105 +43,104 @@
     <geom name="terrain" type="hfield" hfield="terrain_hf" pos="0 0 0" rgba="0.6 0.6 0.6 1" quat="0.70710678 0 0 0.70710678" contype="1" conaffinity="1" />
 
 
-    <body name="root" pos="0 0 0.25117751451163032" quat="1 0 0 0">
+
+    <body name="root" pos="-4.5 0 0.330117751451163032" quat="1 0 0 0">
       <freejoint name="root" />
       <site name="root_site" pos="0 0 0" quat="1 0 0 0" />
       <body name="chassis" pos="0 0 0" quat="1 0 0 0">
-        <inertial pos="0 0 0" mass="1.5" diaginertia="0.001363626666666667 0.0005815466666666668 0.001784746666666667" />
+        <inertial pos="0 0 0.02" mass="1.5" diaginertia="0.001363626666666667 0.0005815466666666668 0.001784746666666667" />
         <geom name="chassis_collision_0" pos="0 0 0" quat="1 0 0 0" type="box" size="0.05 0.08 0.02" rgba="0 0 0 0" />
         <geom name="chassis_visual_0" class="visualgeom" pos="0 0 0" quat="1 0 0 0" material="default_material" type="box" size="0.05 0.08 0.02" />
-        <body name="front_left_wheel_body" pos="0.05 -0.085 -0.01" quat="1.0 0.0 0.0 0.0">
+        <body name="front_left_wheel_body" pos="0.05 -0.085 0" quat="1.0 0.0 0.0 0.0">
           <joint name="front_left_wheel_joint" type="hinge" axis="0 1 0" limited="false"/>
           <inertial pos="0 0 0" quat="0.7071067811865476 0.7071067811865476 0.0 0.0" mass="0.01963495408493621" diaginertia="3.231586193145752e-06 3.231586193145752e-06 6.135923151542567e-06" />
-          <geom name="front_left_wheel_body_collision_0" pos="0 0 0" quat="0.7071067811865476 0.7071067811865476 0.0 0.0" type="sphere" size="0.025" rgba="0 0 0 0" />
-          <geom name="front_left_wheel_body_visual_0" class="visualgeom" pos="0 0 0" quat="0.7071067811865476 0.7071067811865476 0.0 0.0" material="default_material" type="sphere" size="0.025" />
-
-          <body name="front_left_wheel_0_extension_body" pos="0.020833333333333336 0 0" quat="0.573576436351046 0.0 0.8191520442889918 0.0">
+          <geom name="front_left_wheel_body_collision_0" pos="0 0 0" quat="0.7071067811865476 0.7071067811865476 0.0 0.0" type="cylinder" size="0.025 0.005" rgba="0 0 0 0" />
+          <geom name="front_left_wheel_body_visual_0" class="visualgeom" pos="0 0 0" quat="0.7071067811865476 0.7071067811865476 0.0 0.0" material="default_material" type="cylinder" size="0.025 0.005" />
+          <body name="front_left_wheel_0_extension_body" pos="0.020833333333333336 -0.0075 0" quat="0.573576436351046 0.0 0.8191520442889918 0.0">
             <joint name="front_left_wheel_0_extension_joint" type="hinge" range="-1.047 3.427" axis="0 1 0" />
             <inertial pos="-0.0125 0 0" quat="1.0 0.0 0.0 0.0" mass="0.02" diaginertia="2.604166666666667e-09 3.385416666666667e-08 3.385416666666667e-08" />
             <geom name="front_left_wheel_0_extension_body_collision_0" pos="-0.0125 0 0" quat="1.0 0.0 0.0 0.0" type="box" size="0.0125 0.0025 0.0025" rgba="0 0 0 0" />
             <geom name="front_left_wheel_0_extension_body_visual_0" class="visualgeom" pos="-0.0125 0 0" quat="1.0 0.0 0.0 0.0" material="front_left_wheel_0_extension_body_material" type="box" size="0.0125 0.0025 0.0025" />
           </body>
-          <body name="front_left_wheel_1_extension_body" pos="-0.010416666666666663 0 0.018042195912175808" quat="0.9961946980917455 0.0 -0.0871557427476581 0.0">
+          <body name="front_left_wheel_1_extension_body" pos="-0.010416666666666663 -0.0075 0.018042195912175808" quat="0.9961946980917455 0.0 -0.0871557427476581 0.0">
             <joint name="front_left_wheel_1_extension_joint" type="hinge" range="-1.047 3.427" axis="0 1 0" />
             <inertial pos="-0.0125 0 0" quat="1.0 0.0 0.0 0.0" mass="0.02" diaginertia="2.604166666666667e-09 3.385416666666667e-08 3.385416666666667e-08" />
             <geom name="front_left_wheel_1_extension_body_collision_0" pos="-0.0125 0 0" quat="1.0 0.0 0.0 0.0" type="box" size="0.0125 0.0025 0.0025" rgba="0 0 0 0" />
             <geom name="front_left_wheel_1_extension_body_visual_0" class="visualgeom" pos="-0.0125 0 0" quat="1.0 0.0 0.0 0.0" material="front_left_wheel_1_extension_body_material" type="box" size="0.0125 0.0025 0.0025" />
           </body>
-          <body name="front_left_wheel_2_extension_body" pos="-0.010416666666666676 0 -0.018042195912175804" quat="0.4226182617406996 0.0 -0.9063077870366498 0.0">
+          <body name="front_left_wheel_2_extension_body" pos="-0.010416666666666676 -0.0075 -0.018042195912175804" quat="0.4226182617406996 0.0 -0.9063077870366498 0.0">
             <joint name="front_left_wheel_2_extension_joint" type="hinge" range="-1.047 3.427" axis="0 1 0" />
             <inertial pos="-0.0125 0 0" quat="1.0 0.0 0.0 0.0" mass="0.02" diaginertia="2.604166666666667e-09 3.385416666666667e-08 3.385416666666667e-08" />
             <geom name="front_left_wheel_2_extension_body_collision_0" pos="-0.0125 0 0" quat="1.0 0.0 0.0 0.0" type="box" size="0.0125 0.0025 0.0025" rgba="0 0 0 0" />
             <geom name="front_left_wheel_2_extension_body_visual_0" class="visualgeom" pos="-0.0125 0 0" quat="1.0 0.0 0.0 0.0" material="front_left_wheel_2_extension_body_material" type="box" size="0.0125 0.0025 0.0025" />
           </body>
         </body>
-        <body name="front_right_wheel_body" pos="0.05 0.085 -0.01" quat="1.0 0.0 0.0 0.0">
+        <body name="front_right_wheel_body" pos="0.05 0.085 0" quat="1.0 0.0 0.0 0.0">
           <joint name="front_right_wheel_joint" type="hinge" axis="0 1 0" limited="false"/>
           <inertial pos="0 0 0" quat="0.7071067811865476 0.7071067811865476 0.0 0.0" mass="0.01963495408493621" diaginertia="3.231586193145752e-06 3.231586193145752e-06 6.135923151542567e-06" />
-
-          <geom name="front_right_wheel_body_collision_0" pos="0 0 0" quat="0.7071067811865476 0.7071067811865476 0.0 0.0" type="sphere" size="0.025" rgba="0 0 0 0" />
-          <geom name="front_right_wheel_body_visual_0" class="visualgeom" pos="0 0 0" quat="0.7071067811865476 0.7071067811865476 0.0 0.0" material="default_material" type="sphere" size="0.025" />
-          <body name="front_right_wheel_0_extension_body" pos="0.020833333333333336 0 0" quat="0.573576436351046 0.0 0.8191520442889918 0.0">
+          <geom name="front_right_wheel_body_collision_0" pos="0 0 0" quat="0.7071067811865476 0.7071067811865476 0.0 0.0" type="cylinder" size="0.025 0.005" rgba="0 0 0 0" />
+          <geom name="front_right_wheel_body_visual_0" class="visualgeom" pos="0 0 0" quat="0.7071067811865476 0.7071067811865476 0.0 0.0" material="default_material" type="cylinder" size="0.025 0.005" />
+          <body name="front_right_wheel_0_extension_body" pos="0.020833333333333336 0.0075 0" quat="0.573576436351046 0.0 0.8191520442889918 0.0">
             <joint name="front_right_wheel_0_extension_joint" type="hinge" range="-1.047 3.427" axis="0 1 0" />
             <inertial pos="-0.0125 0 0" quat="1.0 0.0 0.0 0.0" mass="0.02" diaginertia="2.604166666666667e-09 3.385416666666667e-08 3.385416666666667e-08" />
             <geom name="front_right_wheel_0_extension_body_collision_0" pos="-0.0125 0 0" quat="1.0 0.0 0.0 0.0" type="box" size="0.0125 0.0025 0.0025" rgba="0 0 0 0" />
             <geom name="front_right_wheel_0_extension_body_visual_0" class="visualgeom" pos="-0.0125 0 0" quat="1.0 0.0 0.0 0.0" material="front_right_wheel_0_extension_body_material" type="box" size="0.0125 0.0025 0.0025" />
           </body>
-          <body name="front_right_wheel_1_extension_body" pos="-0.010416666666666663 0 0.018042195912175808" quat="0.9961946980917455 0.0 -0.0871557427476581 0.0">
+          <body name="front_right_wheel_1_extension_body" pos="-0.010416666666666663 0.0075 0.018042195912175808" quat="0.9961946980917455 0.0 -0.0871557427476581 0.0">
             <joint name="front_right_wheel_1_extension_joint" type="hinge" range="-1.047 3.427" axis="0 1 0" />
             <inertial pos="-0.0125 0 0" quat="1.0 0.0 0.0 0.0" mass="0.02" diaginertia="2.604166666666667e-09 3.385416666666667e-08 3.385416666666667e-08" />
             <geom name="front_right_wheel_1_extension_body_collision_0" pos="-0.0125 0 0" quat="1.0 0.0 0.0 0.0" type="box" size="0.0125 0.0025 0.0025" rgba="0 0 0 0" />
             <geom name="front_right_wheel_1_extension_body_visual_0" class="visualgeom" pos="-0.0125 0 0" quat="1.0 0.0 0.0 0.0" material="front_right_wheel_1_extension_body_material" type="box" size="0.0125 0.0025 0.0025" />
           </body>
-          <body name="front_right_wheel_2_extension_body" pos="-0.010416666666666676 0 -0.018042195912175804" quat="0.4226182617406996 0.0 -0.9063077870366498 0.0">
+          <body name="front_right_wheel_2_extension_body" pos="-0.010416666666666676 0.0075 -0.018042195912175804" quat="0.4226182617406996 0.0 -0.9063077870366498 0.0">
             <joint name="front_right_wheel_2_extension_joint" type="hinge" range="-1.047 3.427" axis="0 1 0" />
             <inertial pos="-0.0125 0 0" quat="1.0 0.0 0.0 0.0" mass="0.02" diaginertia="2.604166666666667e-09 3.385416666666667e-08 3.385416666666667e-08" />
             <geom name="front_right_wheel_2_extension_body_collision_0" pos="-0.0125 0 0" quat="1.0 0.0 0.0 0.0" type="box" size="0.0125 0.0025 0.0025" rgba="0 0 0 0" />
             <geom name="front_right_wheel_2_extension_body_visual_0" class="visualgeom" pos="-0.0125 0 0" quat="1.0 0.0 0.0 0.0" material="front_right_wheel_2_extension_body_material" type="box" size="0.0125 0.0025 0.0025" />
           </body>
         </body>
-        <body name="rear_left_wheel_body" pos="-0.05 -0.085 -0.01" quat="1.0 0.0 0.0 0.0">
+        <body name="rear_left_wheel_body" pos="-0.05 -0.085 0" quat="1.0 0.0 0.0 0.0">
           <joint name="rear_left_wheel_joint" type="hinge" axis="0 1 0" limited="false"/>
           <inertial pos="0 0 0" quat="0.7071067811865476 0.7071067811865476 0.0 0.0" mass="0.01963495408493621" diaginertia="3.231586193145752e-06 3.231586193145752e-06 6.135923151542567e-06" />
-          <geom name="rear_left_wheel_body_collision_0" pos="0 0 0" quat="0.7071067811865476 0.7071067811865476 0.0 0.0" type="sphere" size="0.025" rgba="0 0 0 0" />
-          <geom name="rear_left_wheel_body_visual_0" class="visualgeom" pos="0 0 0" quat="0.7071067811865476 0.7071067811865476 0.0 0.0" material="default_material" type="sphere" size="0.025" />
-          <body name="rear_left_wheel_0_extension_body" pos="0.020833333333333336 0 0" quat="0.573576436351046 0.0 0.8191520442889918 0.0">
+          <geom name="rear_left_wheel_body_collision_0" pos="0 0 0" quat="0.7071067811865476 0.7071067811865476 0.0 0.0" type="cylinder" size="0.025 0.005" rgba="0 0 0 0" />
+          <geom name="rear_left_wheel_body_visual_0" class="visualgeom" pos="0 0 0" quat="0.7071067811865476 0.7071067811865476 0.0 0.0" material="default_material" type="cylinder" size="0.025 0.005" />
+          <body name="rear_left_wheel_0_extension_body" pos="0.020833333333333336 -0.0075 0" quat="0.573576436351046 0.0 0.8191520442889918 0.0">
             <joint name="rear_left_wheel_0_extension_joint" type="hinge" range="-1.047 3.427" axis="0 1 0" />
             <inertial pos="-0.0125 0 0" quat="1.0 0.0 0.0 0.0" mass="0.02" diaginertia="2.604166666666667e-09 3.385416666666667e-08 3.385416666666667e-08" />
             <geom name="rear_left_wheel_0_extension_body_collision_0" pos="-0.0125 0 0" quat="1.0 0.0 0.0 0.0" type="box" size="0.0125 0.0025 0.0025" rgba="0 0 0 0" />
             <geom name="rear_left_wheel_0_extension_body_visual_0" class="visualgeom" pos="-0.0125 0 0" quat="1.0 0.0 0.0 0.0" material="rear_left_wheel_0_extension_body_material" type="box" size="0.0125 0.0025 0.0025" />
           </body>
-          <body name="rear_left_wheel_1_extension_body" pos="-0.010416666666666663 0 0.018042195912175808" quat="0.9961946980917455 0.0 -0.0871557427476581 0.0">
+          <body name="rear_left_wheel_1_extension_body" pos="-0.010416666666666663 -0.0075 0.018042195912175808" quat="0.9961946980917455 0.0 -0.0871557427476581 0.0">
             <joint name="rear_left_wheel_1_extension_joint" type="hinge" range="-1.047 3.427" axis="0 1 0" />
             <inertial pos="-0.0125 0 0" quat="1.0 0.0 0.0 0.0" mass="0.02" diaginertia="2.604166666666667e-09 3.385416666666667e-08 3.385416666666667e-08" />
             <geom name="rear_left_wheel_1_extension_body_collision_0" pos="-0.0125 0 0" quat="1.0 0.0 0.0 0.0" type="box" size="0.0125 0.0025 0.0025" rgba="0 0 0 0" />
             <geom name="rear_left_wheel_1_extension_body_visual_0" class="visualgeom" pos="-0.0125 0 0" quat="1.0 0.0 0.0 0.0" material="rear_left_wheel_1_extension_body_material" type="box" size="0.0125 0.0025 0.0025" />
           </body>
-          <body name="rear_left_wheel_2_extension_body" pos="-0.010416666666666676 0 -0.018042195912175804" quat="0.4226182617406996 0.0 -0.9063077870366498 0.0">
+          <body name="rear_left_wheel_2_extension_body" pos="-0.010416666666666676 -0.0075 -0.018042195912175804" quat="0.4226182617406996 0.0 -0.9063077870366498 0.0">
             <joint name="rear_left_wheel_2_extension_joint" type="hinge" range="-1.047 3.427" axis="0 1 0" />
             <inertial pos="-0.0125 0 0" quat="1.0 0.0 0.0 0.0" mass="0.02" diaginertia="2.604166666666667e-09 3.385416666666667e-08 3.385416666666667e-08" />
             <geom name="rear_left_wheel_2_extension_body_collision_0" pos="-0.0125 0 0" quat="1.0 0.0 0.0 0.0" type="box" size="0.0125 0.0025 0.0025" rgba="0 0 0 0" />
             <geom name="rear_left_wheel_2_extension_body_visual_0" class="visualgeom" pos="-0.0125 0 0" quat="1.0 0.0 0.0 0.0" material="rear_left_wheel_2_extension_body_material" type="box" size="0.0125 0.0025 0.0025" />
           </body>
         </body>
-        <body name="rear_right_wheel_body" pos="-0.05 0.085 -0.01" quat="1.0 0.0 0.0 0.0">
+        <body name="rear_right_wheel_body" pos="-0.05 0.085 0" quat="1.0 0.0 0.0 0.0">
           <joint name="rear_right_wheel_joint" type="hinge" axis="0 1 0" limited="false"/>
           <inertial pos="0 0 0" quat="0.7071067811865476 0.7071067811865476 0.0 0.0" mass="0.01963495408493621" diaginertia="3.231586193145752e-06 3.231586193145752e-06 6.135923151542567e-06" />
-          <geom name="rear_right_wheel_body_collision_0" pos="0 0 0" quat="0.7071067811865476 0.7071067811865476 0.0 0.0" type="sphere" size="0.025" rgba="0 0 0 0" />
-          <geom name="rear_right_wheel_body_visual_0" class="visualgeom" pos="0 0 0" quat="0.7071067811865476 0.7071067811865476 0.0 0.0" material="default_material" type="sphere" size="0.025" />
-          <body name="rear_right_wheel_0_extension_body" pos="0.020833333333333336 0 0" quat="0.573576436351046 0.0 0.8191520442889918 0.0">
+          <geom name="rear_right_wheel_body_collision_0" pos="0 0 0" quat="0.7071067811865476 0.7071067811865476 0.0 0.0" type="cylinder" size="0.025 0.005" rgba="0 0 0 0" />
+          <geom name="rear_right_wheel_body_visual_0" class="visualgeom" pos="0 0 0" quat="0.7071067811865476 0.7071067811865476 0.0 0.0" material="default_material" type="cylinder" size="0.025 0.005" />
+          <body name="rear_right_wheel_0_extension_body" pos="0.020833333333333336 0.0075 0" quat="0.573576436351046 0.0 0.8191520442889918 0.0">
             <joint name="rear_right_wheel_0_extension_joint" type="hinge" range="-1.047 3.427" axis="0 1 0" />
             <inertial pos="-0.0125 0 0" quat="1.0 0.0 0.0 0.0" mass="0.02" diaginertia="2.604166666666667e-09 3.385416666666667e-08 3.385416666666667e-08" />
             <geom name="rear_right_wheel_0_extension_body_collision_0" pos="-0.0125 0 0" quat="1.0 0.0 0.0 0.0" type="box" size="0.0125 0.0025 0.0025" rgba="0 0 0 0" />
             <geom name="rear_right_wheel_0_extension_body_visual_0" class="visualgeom" pos="-0.0125 0 0" quat="1.0 0.0 0.0 0.0" material="rear_right_wheel_0_extension_body_material" type="box" size="0.0125 0.0025 0.0025" />
           </body>
-          <body name="rear_right_wheel_1_extension_body" pos="-0.010416666666666663 0 0.018042195912175808" quat="0.9961946980917455 0.0 -0.0871557427476581 0.0">
+          <body name="rear_right_wheel_1_extension_body" pos="-0.010416666666666663 0.0075 0.018042195912175808" quat="0.9961946980917455 0.0 -0.0871557427476581 0.0">
             <joint name="rear_right_wheel_1_extension_joint" type="hinge" range="-1.047 3.427" axis="0 1 0" />
             <inertial pos="-0.0125 0 0" quat="1.0 0.0 0.0 0.0" mass="0.02" diaginertia="2.604166666666667e-09 3.385416666666667e-08 3.385416666666667e-08" />
             <geom name="rear_right_wheel_1_extension_body_collision_0" pos="-0.0125 0 0" quat="1.0 0.0 0.0 0.0" type="box" size="0.0125 0.0025 0.0025" rgba="0 0 0 0" />
             <geom name="rear_right_wheel_1_extension_body_visual_0" class="visualgeom" pos="-0.0125 0 0" quat="1.0 0.0 0.0 0.0" material="rear_right_wheel_1_extension_body_material" type="box" size="0.0125 0.0025 0.0025" />
           </body>
-          <body name="rear_right_wheel_2_extension_body" pos="-0.010416666666666676 0 -0.018042195912175804" quat="0.4226182617406996 0.0 -0.9063077870366498 0.0">
+          <body name="rear_right_wheel_2_extension_body" pos="-0.010416666666666676 0.0075 -0.018042195912175804" quat="0.4226182617406996 0.0 -0.9063077870366498 0.0">
             <joint name="rear_right_wheel_2_extension_joint" type="hinge" range="-1.047 3.427" axis="0 1 0" />
             <inertial pos="-0.0125 0 0" quat="1.0 0.0 0.0 0.0" mass="0.02" diaginertia="2.604166666666667e-09 3.385416666666667e-08 3.385416666666667e-08" />
             <geom name="rear_right_wheel_2_extension_body_collision_0" pos="-0.0125 0 0" quat="1.0 0.0 0.0 0.0" type="box" size="0.0125 0.0025 0.0025" rgba="0 0 0 0" />
@@ -180,20 +179,18 @@
 
   <!-- Leg extension torques (N·m) -->
   <motor name="front_left_wheel_0_extension_joint_ctrl"  joint="front_left_wheel_0_extension_joint"  ctrllimited="true" ctrlrange="-0.6 0.6" />
-  <!-- <motor name="front_left_wheel_1_extension_joint_ctrl"  joint="front_left_wheel_1_extension_joint"  ctrllimited="true" ctrlrange="-0.6 0.6" />
-  <motor name="front_left_wheel_2_extension_joint_ctrl"  joint="front_left_wheel_2_extension_joint"  ctrllimited="true" ctrlrange="-0.6 0.6" /> -->
+  <!-- <position name="front_left_wheel_0_extension_joint_ctrl"  joint="front_left_wheel_0_extension_joint"  ctrllimited="true" ctrlrange="-1.047 3.427" /> -->
 
   <motor name="front_right_wheel_0_extension_joint_ctrl" joint="front_right_wheel_0_extension_joint" ctrllimited="true" ctrlrange="-0.6 0.6" />
-  <!-- <motor name="front_right_wheel_1_extension_joint_ctrl" joint="front_right_wheel_1_extension_joint" ctrllimited="true" ctrlrange="-0.6 0.6" />
-  <motor name="front_right_wheel_2_extension_joint_ctrl" joint="front_right_wheel_2_extension_joint" ctrllimited="true" ctrlrange="-0.6 0.6" /> -->
+  <!-- <position name="front_right_wheel_0_extension_joint_ctrl"  joint="front_right_wheel_0_extension_joint"  ctrllimited="true" ctrlrange="-1.047 3.427" /> -->
 
   <motor name="rear_left_wheel_0_extension_joint_ctrl"   joint="rear_left_wheel_0_extension_joint"   ctrllimited="true" ctrlrange="-0.6 0.6" />
-  <!-- <motor name="rear_left_wheel_1_extension_joint_ctrl"   joint="rear_left_wheel_1_extension_joint"   ctrllimited="true" ctrlrange="-0.6 0.6" />
-  <motor name="rear_left_wheel_2_extension_joint_ctrl"   joint="rear_left_wheel_2_extension_joint"   ctrllimited="true" ctrlrange="-0.6 0.6" /> -->
+  <!-- <position name="rear_left_wheel_0_extension_joint_ctrl"  joint="rear_left_wheel_0_extension_joint"  ctrllimited="true" ctrlrange="-1.047 3.427" /> -->
 
   <motor name="rear_right_wheel_0_extension_joint_ctrl"  joint="rear_right_wheel_0_extension_joint"  ctrllimited="true" ctrlrange="-0.6 0.6" />
-  <!-- <motor name="rear_right_wheel_1_extension_joint_ctrl"  joint="rear_right_wheel_1_extension_joint"  ctrllimited="true" ctrlrange="-0.6 0.6" />
-  <motor name="rear_right_wheel_2_extension_joint_ctrl"  joint="rear_right_wheel_2_extension_joint"  ctrllimited="true" ctrlrange="-0.6 0.6" /> -->
+  <!-- <position name="rear_right_wheel_0_extension_joint_ctrl"  joint="rear_right_wheel_0_extension_joint"  ctrllimited="true" ctrlrange="-1.047 3.427" /> -->
+
+
 </actuator>
 
   <sensor>
@@ -204,6 +201,7 @@
 
     <accelerometer name="root_acc" site="root_site"/>
     <gyro          name="root_gyro" site="root_site"/>
+    <!-- <touch name="box_touch" site="traverse_box_site"/> -->
 
 
   </sensor>

@@ -30,9 +30,9 @@ Reward:
 
 """
 
-# xml_file = "trans_wheel_robo2_2FLAT.xml"
+xml_file = "trans_wheel_robo2_2FLAT.xml"
 # xml_file = "trans_wheel_robo2_2BOX.xml"
-xml_file = "trans_wheel_robo2_2GEN_TERR.xml"
+# xml_file = "trans_wheel_robo2_2GEN_TERR.xml"
 # xml_file = "trans_wheel_robo2_2JAMES_TERR.xml"
 
 
@@ -807,7 +807,7 @@ def main():
     start_time = time.time()
     _params, returns_history, x_delta_history = train_ppo(
         env,
-        total_timesteps=1_200_000,
+        total_timesteps=100_000,
         rollout_steps=1024,
         gamma=0.99,
         gae_lambda=0.95,
