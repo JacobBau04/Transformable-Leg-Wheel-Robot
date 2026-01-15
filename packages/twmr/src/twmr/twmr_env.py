@@ -12,7 +12,7 @@ from mujoco_playground._src import reward
 from mujoco_playground._src.dm_control_suite import common
 from pathlib import Path
 
-_XML_PATH = Path("trans_wheel_robo3_3FLAT.xml") 
+_XML_PATH = Path("trans_wheel_robo2_2FLAT.xml") 
 
 #ignore image implementation for now
 
@@ -70,7 +70,7 @@ class TransformableWheelMobileRobot(mjx_env.MjxEnv):
         
         data = mjx.forward(self.mjx_model, data)
 
-        #initialize metrics to zero
+        #initialize metrics to zero (narrow down exact metrics later)
         metrics = {
             "reward/forward_vel": jp.zeros(()),
             "reward/survival": jp.zeros(()),
