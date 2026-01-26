@@ -11,18 +11,19 @@
     <joint damping="0.5"/>
   </default> -->
 
-  <!-- <asset>
-  </asset> -->
+  <asset>
+    <texture name="grid" type="2d" builtin="checker" rgb1=".1 .2 .3" rgb2=".2 .3 .4" width="300" height="300" />
+    <material name="grid" texture="grid" texrepeat="8 8" reflectance=".2" />
+  </asset>
 
   <worldbody>
-    <!-- Optional small ground plane for visualization -->
-    <geom name="ground" type="plane" size="10 10 0.1" rgba="0.8 0.9 0.8 1" />
-
-    <!-- <light directional="true" diffuse=".8 .8 .8" specular=".2 .2 .2" pos="0 0 5" dir="0 0 -1"/> -->
+    <geom name="ground" type="plane" size="0.2 0.2 0.01" material="grid" />
+    <light pos="0 0 0.6" />
+    <camera name="closeup" pos="0 -.1 .07" xyaxes="1 0 0 0 1 2" />
 
     <!-- Chassis -->
     <body name="chassis" pos="0 0 0.15">
-      <!-- <freejoint name="root" /> -->
+      <freejoint />
       <geom name="chassis_geom" type="box" size="0.25 0.18 0.06" rgba="0.8 0.3 0.3 1" />
 
       <!-- Front left wheel -->

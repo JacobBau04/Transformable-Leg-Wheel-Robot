@@ -107,9 +107,8 @@ class TransformableWheelMobileRobot(MjxEnv):
 
     def step(self, state: State, action: JaxArray) -> State:
         data = mjx_env.step(self.mjx_model, state.data, action, self.n_substeps)
-        reward = jp.array(
-            0.0
-        )  # self._compute_reward_and_metrics(data, action, state.info, state.metrics)
+        # self._compute_reward_and_metrics(data, action, state.info, state.metrics)
+        reward = jp.array(0.0)
         obs = self._get_obs(data, state.info)
         done = jp.isnan(data.qpos).any() | jp.isnan(data.qvel).any()
         done = done.astype(float)
@@ -124,11 +123,12 @@ class TransformableWheelMobileRobot(MjxEnv):
         )
 
     def _get_obs(self, data: mjx.Data, info: dict[str, Any]) -> JaxArray:
-        # joint positions and velocities
-        qpos = data.qpos[7:]
-        qvel = data.qvel[6:]
-        orientation = data.qpos[3:7]
-        return jp.concatenate([qpos, qvel, orientation])
+        # TODO: center of mass dynamics
+        qpos = data.qpos
+        # print(f"==>> qpos: {qpos}")
+        qvel = data.qvel
+        # print(f"==>> qvel: {qvel}")
+        return jp.concatenate([qpos, qvel])
 
     def _compute_reward_and_metrics(self) -> JaxArray:
         # TODO: this function will compute the reward and set both metrics and info
