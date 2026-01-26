@@ -1,31 +1,30 @@
+from pathlib import Path
 from typing import Any, Dict, Optional, Union
+
 import jax
 import jax.numpy as jp
-from ml_collections import config_dict
 import mujoco
-from mujoco import mjx
 import numpy as np
-
+from ml_collections import config_dict
+from mujoco import mjx
 from mujoco_playground import MjxEnv, State, dm_control_suite
-from mujoco_playground._src import mjx_env
-from mujoco_playground._src import reward
+from mujoco_playground._src import mjx_env, reward
 from mujoco_playground._src.dm_control_suite import common
-from mujoco_playground import dm_control_suite
-from pathlib import Path
 
 _XML_PATH = Path("trans_wheel_robo2_2FLAT.xml")
 
-#ignore image implementation for now
+# ignore image implementation for now
+
 
 def default_config() -> config_dict.ConfigDict:
     return config_dict.create(
-        ctrl_dt=0.02,        #50 hz control
-        sim_dt=0.002,        #500 hz physics
-        episode_length=1000, #20 seconds
-        action_repeat=10,    #ratio of 0.02 / 0.002
-        impl="jax",          #use warp? yes
-        nconmax=100,         #allow collisions
-        njmax=500,           #allow complex joints
+        ctrl_dt=0.02,  # 50 hz control
+        sim_dt=0.002,  # 500 hz physics
+        episode_length=1000,  # 20 seconds
+        action_repeat=10,  # ratio of 0.02 / 0.002
+        impl="jax",  # use warp? yes
+        nconmax=100,  # allow collisions
+        njmax=500,  # allow complex joints
     )
 
 
@@ -43,13 +42,13 @@ class TransformableWheelMobileRobot(mjx_env.MjxEnv):
         self._mjx_model = mjx.put_model(self._mj_model, impl=self._config.impl)
         self._post_init()
 
-    def _post_init(self) -> None: #find chassis to track speed and orientation
+    def _post_init(self) -> None:  # find chassis to track speed and orientation
         self._root_body_id = self._mj_model.body("root").id
 
     def reset(self, rng: jax.Array) -> mjx_env.State:
         rng, rng_init = jax.random.split(rng)
 
-        #randomize initial position
+        # randomize initial position
         qpos = jp.zeros(self.mjx_model.nq)
         qpos = qpos.at[2].set(0.2)
         qpos = qpos + 0.01 * jax.random.normal(rng_init, qpos.shape)
@@ -79,7 +78,6 @@ class TransformableWheelMobileRobot(mjx_env.MjxEnv):
             metrics=metrics,
             info=info,
         )
-
 
     def step(self, state: mjx_env.State, action: jax.Array) -> mjx_env.State:
         rng, rng_next = jax.random.split(state.info["rng"])
@@ -117,14 +115,12 @@ class TransformableWheelMobileRobot(mjx_env.MjxEnv):
             info=info,
         )
 
-
     def _get_obs(self, data: mjx.Data, info: dict = {}) -> jax.Array:
-        #joint positions and velocities
+        # joint positions and velocities
         qpos = data.qpos[7:]
         qvel = data.qvel[6:]
         orientation = data.qpos[3:7]
         return jp.concatenate([qpos, qvel, orientation])
-
 
     @property
     def xml_path(self) -> str:
@@ -141,6 +137,7 @@ class TransformableWheelMobileRobot(mjx_env.MjxEnv):
     @property
     def mjx_model(self) -> mjx.Model:
         return self._mjx_model
+
 
 dm_control_suite.register_environment(
     env_name="TransformableWheelMobileRobot",

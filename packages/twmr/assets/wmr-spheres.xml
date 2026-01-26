@@ -1,0 +1,83 @@
+<?xml version="1.0"?>
+<mujoco model="wmr">
+  <!-- <compiler angle="degree" meshdir="meshes"/> -->
+  <!-- <compiler angle="degree" coordinate="local" inertiafromgeom="true" /> -->
+  <!-- <option gravity="0 0 -9.81" integrator="RK4" timestep="0.002"/> -->
+  <!-- <option integrator="RK4" timestep="0.01"/> -->
+
+
+  <!-- <default>
+    <geom condim="3" contype="1" conaffinity="1" friction="1 0.5 0.5" density="1000"/>
+    <joint damping="0.5"/>
+  </default> -->
+
+  <!-- <asset>
+  </asset> -->
+
+  <worldbody>
+    <!-- Optional small ground plane for visualization -->
+    <geom name="ground" type="plane" size="10 10 0.1" rgba="0.8 0.9 0.8 1" />
+
+    <!-- <light directional="true" diffuse=".8 .8 .8" specular=".2 .2 .2" pos="0 0 5" dir="0 0 -1"/> -->
+
+    <!-- Chassis -->
+    <body name="chassis" pos="0 0 0.15">
+      <!-- <freejoint name="root" /> -->
+      <geom name="chassis_geom" type="box" size="0.25 0.18 0.06" rgba="0.8 0.3 0.3 1" />
+
+      <!-- Front left wheel -->
+      <body name="wheel_fl" pos="0.25 0.18 -0.06">
+        <joint name="joint_fl" type="hinge" axis="0 1 0" />
+        <geom name="geom_fl" type="sphere" size="0.06" rgba="0.1 0.1 0.1 1" />
+      </body>
+
+      <!-- Front right wheel -->
+      <body name="wheel_fr" pos="0.25 -0.18 -0.06">
+        <joint name="joint_fr" type="hinge" axis="0 1 0" />
+        <geom name="geom_fr" type="sphere" size="0.06" rgba="0.1 0.1 0.1 1" />
+      </body>
+
+      <!-- Rear left wheel -->
+      <body name="wheel_rl" pos="-0.25 0.18 -0.06">
+        <joint name="joint_rl" type="hinge" axis="0 1 0" />
+        <geom name="geom_rl" type="sphere" size="0.06" rgba="0.1 0.1 0.1 1" />
+      </body>
+
+      <!-- Rear right wheel -->
+      <body name="wheel_rr" pos="-0.25 -0.18 -0.06">
+        <joint name="joint_rr" type="hinge" axis="0 1 0" />
+        <geom name="geom_rr" type="sphere" size="0.06" rgba="0.1 0.1 0.1 1" />
+      </body>
+
+    </body>
+  </worldbody>
+
+  <actuator>
+    <!-- Independent motors for each wheel -->
+    <motor name="motor_fl" joint="joint_fl" gear="100" />
+    <motor name="motor_fr" joint="joint_fr" gear="100" />
+    <motor name="motor_rl" joint="joint_rl" gear="100" />
+    <motor name="motor_rr" joint="joint_rr" gear="100" />
+  </actuator>
+
+  <sensor>
+    <jointpos joint="joint_fl" />
+    <jointvel joint="joint_fl" />
+    <jointpos joint="joint_fr" />
+    <jointvel joint="joint_fr" />
+    <jointpos joint="joint_rl" />
+    <jointvel joint="joint_rl" />
+    <jointpos joint="joint_rr" />
+    <jointvel joint="joint_rr" />
+
+    <!-- simple IMU attached to chassis -->
+    <!-- <accelerometer name="chassis_accel" site="chassis_accel_site" /> -->
+    <!-- <gyro name="chassis_gyro" site="chassis_accel_site" /> -->
+  </sensor>
+
+  <!-- A small site for mounting sensors on the chassis -->
+  <!-- <tendon /> -->
+  <!-- <protocol /> -->
+  <!-- <site name="chassis_accel_site" pos="0 0 0.15" /> -->
+
+</mujoco>
