@@ -1,5 +1,9 @@
 # Transformable Wheel Robot
 
+## Notes
+
+* Using cylinders for wheels causes the warp backend to crash without an error message.
+
 ## DEMO
 
 <img src="assets/robot_step.gif" alt="Robot climbing over a step" style="width: 400px; max-width: 100%;">

@@ -71,14 +71,13 @@
     <jointvel joint="joint_rr" />
 
     <!-- simple IMU attached to chassis -->
-    <accelerometer name="chassis_accel" site="chassis_accel_site" />
-    <gyro name="chassis_gyro" site="chassis_accel_site" />
+    <!-- <accelerometer name="chassis_accel" site="chassis_accel_site" /> -->
+    <!-- <gyro name="chassis_gyro" site="chassis_accel_site" /> -->
   </sensor>
 
   <!-- A small site for mounting sensors on the chassis -->
-  <tendon />
-  <protocol />
-
-  <site name="chassis_accel_site" pos="0 0 0.15" />
+  <!-- <tendon /> -->
+  <!-- <protocol /> -->
+  <!-- <site name="chassis_accel_site" pos="0 0 0.15" /> -->
 
 </mujoco>
