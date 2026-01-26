@@ -69,13 +69,13 @@ class TransformableWheelMobileRobot(MjxEnv):
         # qpos = qpos + 0.01 * jax.random.normal(rng_init, qpos.shape)
 
         # Initially reset to the original position
-        qpos = jp.zeros(self.mjx_model.nq)
-        qvel = jp.zeros(self.mjx_model.nv)
+        # qpos = jp.zeros(self.mjx_model.nq)
+        # qvel = jp.zeros(self.mjx_model.nv)
 
         data = mjx_env.make_data(
             self.mj_model,
-            qpos=qpos,
-            qvel=qvel,
+            # qpos=qpos,
+            # qvel=qvel,
             impl=self.mjx_model.impl.value,
             nconmax=self._config.nconmax,  # type: ignore
             njmax=self._config.njmax,  # type: ignore

@@ -17,7 +17,7 @@
   </asset>
 
   <worldbody>
-    <geom name="ground" type="plane" size="0.2 0.2 0.01" material="grid" />
+    <geom name="ground" type="plane" size="1. 1. 0.01" material="grid" />
     <light pos="0 0 0.6" />
     <camera name="closeup" pos="0 -.1 .07" xyaxes="1 0 0 0 1 2" />
 
