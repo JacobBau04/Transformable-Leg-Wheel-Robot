@@ -9,3 +9,4 @@ version = "0.1.0"
 
 [dependencies]
 uv = ">=0.9.18,<0.10"
+ffmpeg = ">=8.0.1,<9"

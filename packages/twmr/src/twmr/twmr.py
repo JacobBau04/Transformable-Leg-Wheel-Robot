@@ -12,7 +12,7 @@ from mujoco_playground._src import reward as reward_utils
 from mujoco_playground._src.dm_control_suite import common
 
 ConfigOverridesDict = dict[str, str | int | list]
-_XML_PATH = Path(__file__).parent.parent.parent / "assets" / "wmr-spheres.xml"
+_XML_PATH = Path(__file__).parent.parent.parent / "assets" / "trans_wheel_robo2_2FLAT.xml"
 
 
 # def default_vision_config() -> config_dict.ConfigDict:
@@ -42,7 +42,7 @@ def default_config() -> config_dict.ConfigDict:
     )
 
 
-class TransformableWheelMobileRobot(MjxEnv):
+class TWMRLegFlat(MjxEnv):
     def __init__(
         self,
         # Task specific config
@@ -152,7 +152,7 @@ class TransformableWheelMobileRobot(MjxEnv):
 
 
 dm_control_suite.register_environment(
-    env_name="TransformableWheelMobileRobot",
-    env_class=TransformableWheelMobileRobot,
+    env_name="TWMRLegFlat",
+    env_class=TWMRLegFlat,
     cfg_class=default_config,
 )
