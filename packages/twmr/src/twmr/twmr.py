@@ -14,6 +14,15 @@ from mujoco_playground._src.dm_control_suite import common
 ConfigOverridesDict = dict[str, str | int | list]
 _XML_PATH = Path(__file__).parent.parent.parent / "assets" / "trans_wheel_robo2_2FLAT.xml"
 
+# Reward constants (matched to DemoModes.ipynb)
+_LEG_MIN = -1.047                            # rad: contracted position
+_LEG_MAX =  3.427                            # rad: fully extended position
+_LEG_CENTER = (_LEG_MAX + _LEG_MIN) / 2.0   # 1.19 rad
+_LEG_HALF_RANGE = (_LEG_MAX - _LEG_MIN) / 2.0  # 2.237 rad
+_LEG_IDX = (8, 12, 16, 20)                  # qpos indices for the 4 leg joints
+_CTRL_COST_W = 0.0005
+_LEG_EXT_COST_W = 0.01
+
 
 # def default_vision_config() -> config_dict.ConfigDict:
 #     return config_dict.create(
@@ -83,14 +92,12 @@ class TWMRLegFlat(MjxEnv):
 
         data = mjx.forward(self.mjx_model, data)
 
-        # TODO: initialize metrics to zero once we know what to track
-        metrics = {}
-        # metrics = {
-        #     "reward/forward_vel": jp.array(0.0),
-        #     "reward/survival": jp.array(0.0),
-        #     "reward/energy": jp.array(0.0),
-        #     "reward": jp.array(0.0),
-        # }
+        metrics = {
+            "reward":                    jp.array(0.0),
+            "reward/forward_vel":        jp.array(0.0),
+            "reward/ctrl_cost":          jp.array(0.0),
+            "reward/leg_extension_cost": jp.array(0.0),
+        }
 
         info = {"rng": rng}
 
@@ -107,18 +114,32 @@ class TWMRLegFlat(MjxEnv):
 
     def step(self, state: State, action: JaxArray) -> State:
         data = mjx_env.step(self.mjx_model, state.data, action, self.n_substeps)
-        # self._compute_reward_and_metrics(data, action, state.info, state.metrics)
-        reward = jp.array(0.0)
-        obs = self._get_obs(data, state.info)
+
+        vx          = data.qvel[0]
+        frwd_reward = vx
+        ctrl_cost   = _CTRL_COST_W * jp.sum(jp.square(action))
+        leg_angles  = data.qpos[jp.array(list(_LEG_IDX))]
+        leg_ext_norm = 1.0 - jp.abs(leg_angles - _LEG_CENTER) / _LEG_HALF_RANGE
+        leg_ext_cost = _LEG_EXT_COST_W * jp.sum(leg_ext_norm)
+        reward       = frwd_reward - ctrl_cost - leg_ext_cost
+
+        obs  = self._get_obs(data, state.info)
         done = jp.isnan(data.qpos).any() | jp.isnan(data.qvel).any()
         done = done.astype(float)
+
+        metrics = {
+            "reward":                    reward,
+            "reward/forward_vel":        frwd_reward,
+            "reward/ctrl_cost":          ctrl_cost,
+            "reward/leg_extension_cost": leg_ext_cost,
+        }
 
         return mjx_env.State(
             data=data,
             obs=obs,
             reward=reward,
             done=done,
-            metrics=state.metrics,
+            metrics=metrics,
             info=state.info,
         )
 
