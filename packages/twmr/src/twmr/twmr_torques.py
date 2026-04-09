@@ -19,25 +19,9 @@ _LEG_MIN = -1.047                            # rad: contracted position
 _LEG_MAX =  3.427                            # rad: fully extended position
 _LEG_CENTER = (_LEG_MAX + _LEG_MIN) / 2.0   # 1.19 rad
 _LEG_HALF_RANGE = (_LEG_MAX - _LEG_MIN) / 2.0  # 2.237 rad
+_LEG_IDX = (8, 12, 16, 20)                  # qpos indices for the 4 leg joints
 _CTRL_COST_W = 0.0005
 _LEG_EXT_COST_W = 0.01
-
-# ── PD controller constants ──────────────────────────────────────────────
-# Wheel velocity P(D) controller
-_WHEEL_MAX_SPEED = 8.0           # rad/s  (action ±1 maps to ±8, physical limit)
-_WHEEL_KP = 0.2                 # P gain → max torque 0.08*8 = 0.64, within 0.8 clip
-_WHEEL_KD = 0.0                  # D gain (jerk damping; 0 unless oscillation observed)
-_WHEEL_TORQUE_LIMIT = 0.8        # N·m  (matches XML ctrlrange)
-_WHEEL_QVEL_IDX = jp.array([6, 10, 14, 18])
-
-# Leg cascaded position→velocity controller
-_LEG_POS_KP = 5.0                # outer loop: pos error → desired velocity
-_LEG_POS_KD = 0.0                # outer loop D term: -Kd * actual_vel (0.1?)
-_LEG_VEL_KP = 0.3                # inner loop: vel error → torque
-_LEG_TORQUE_LIMIT = 0.6          # N·m
-_LEG_MAX_VEL_CMD = 10.0          # rad/s clamp on outer loop output
-_LEG_QPOS_IDX = jp.array([8, 12, 16, 20])
-_LEG_QVEL_IDX = jp.array([7, 11, 15, 19])
 
 
 # def default_vision_config() -> config_dict.ConfigDict:
@@ -67,7 +51,7 @@ def default_config() -> config_dict.ConfigDict:
     )
 
 
-class TWMRLegFlat(MjxEnv):
+class TWMRLegFlatRawTorques(MjxEnv):
     def __init__(
         self,
         # Task specific config
@@ -130,40 +114,12 @@ class TWMRLegFlat(MjxEnv):
         )
 
     def step(self, state: State, action: JaxArray) -> State:
-        # ── Decode policy action [8] into ctrl torques [8] via PD ────────
-        # action[0:4] → desired wheel speeds,  action[4:8] → desired leg positions
+        data = mjx_env.step(self.mjx_model, state.data, action, self.n_substeps)
 
-        # --- Wheel velocity P(D) controller ---
-        desired_wheel_vel = action[:4] * _WHEEL_MAX_SPEED          # [-20, 20] rad/s
-        actual_wheel_vel = state.data.qvel[_WHEEL_QVEL_IDX]
-        wheel_vel_err = desired_wheel_vel - actual_wheel_vel
-        wheel_torque = _WHEEL_KP * wheel_vel_err - _WHEEL_KD * actual_wheel_vel
-        wheel_torque = jp.clip(wheel_torque, -_WHEEL_TORQUE_LIMIT, _WHEEL_TORQUE_LIMIT)
-
-        # --- Leg cascaded position → velocity → torque controller ---
-        desired_leg_pos = _LEG_CENTER + action[4:] * _LEG_HALF_RANGE  # map [-1,1] to [min,max]
-        actual_leg_pos = state.data.qpos[_LEG_QPOS_IDX]
-        actual_leg_vel = state.data.qvel[_LEG_QVEL_IDX]
-        # Outer loop: position error → desired velocity
-        desired_leg_vel = _LEG_POS_KP * (desired_leg_pos - actual_leg_pos) - _LEG_POS_KD * actual_leg_vel
-        desired_leg_vel = jp.clip(desired_leg_vel, -_LEG_MAX_VEL_CMD, _LEG_MAX_VEL_CMD)
-        # Inner loop: velocity error → torque
-        leg_vel_err = desired_leg_vel - actual_leg_vel
-        # leg_torque = _LEG_VEL_KP * leg_vel_err
-        leg_torque = jp.full(4, -5.0)
-        leg_torque = jp.clip(leg_torque, -_LEG_TORQUE_LIMIT, _LEG_TORQUE_LIMIT)
-
-        # Assemble ctrl: actuator order is [4 wheels, 4 legs]
-        ctrl = jp.concatenate([wheel_torque, leg_torque])
-
-        # Step physics with computed torques
-        data = mjx_env.step(self.mjx_model, state.data, ctrl, self.n_substeps)
-
-        # ── Reward (penalize actual torques, not raw action) ─────────────
         vx          = data.qvel[0]
         frwd_reward = vx
-        ctrl_cost   = _CTRL_COST_W * jp.sum(jp.square(ctrl))
-        leg_angles  = data.qpos[_LEG_QPOS_IDX]
+        ctrl_cost   = _CTRL_COST_W * jp.sum(jp.square(action))
+        leg_angles  = data.qpos[jp.array(list(_LEG_IDX))]
         leg_ext_norm = 1.0 - jp.abs(leg_angles - _LEG_CENTER) / _LEG_HALF_RANGE
         leg_ext_cost = _LEG_EXT_COST_W * jp.sum(leg_ext_norm)
         reward       = frwd_reward - ctrl_cost - leg_ext_cost
@@ -224,7 +180,7 @@ class TWMRLegFlat(MjxEnv):
 
 
 dm_control_suite.register_environment(
-    env_name="TWMRLegFlat",
-    env_class=TWMRLegFlat,
+    env_name="TWMRLegFlatRawTorques",
+    env_class=TWMRLegFlatRawTorques,
     cfg_class=default_config,
 )
