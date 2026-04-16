@@ -56,7 +56,7 @@ _LEG_QVEL_IDX = jp.array([7, 11, 15, 19])
 def default_config() -> config_dict.ConfigDict:
     return config_dict.create(
         ctrl_dt=0.02,  # 50 hz control
-        sim_dt=0.01,
+        sim_dt=0.002,  # MuJoCo default physics timestep
         episode_length=1000,
         action_repeat=1,  # TODO: should this be a ratio of ctrl_dt / sim_dt?
         vision=False,
@@ -80,8 +80,8 @@ class TWMRLegFlat(MjxEnv):
         model_xml = _XML_PATH.read_text()
         self._model_assets = common.get_assets()
         self._mj_model: MjModel = MjModel.from_xml_string(model_xml, self._model_assets)
+        self._mj_model.opt.timestep = self.sim_dt  # set BEFORE put_model
         self._mjx_model = mjx.put_model(self._mj_model, impl=self._config.impl)  # type: ignore
-        self._mj_model.opt.timestep = self.sim_dt
 
         # TODO: figure out vision with the madrona batch renderer
 
@@ -138,6 +138,7 @@ class TWMRLegFlat(MjxEnv):
         actual_wheel_vel = state.data.qvel[_WHEEL_QVEL_IDX]
         wheel_vel_err = desired_wheel_vel - actual_wheel_vel
         wheel_torque = _WHEEL_KP * wheel_vel_err - _WHEEL_KD * actual_wheel_vel
+        # wheel_torque = jp.full(4, 5.0)
         wheel_torque = jp.clip(wheel_torque, -_WHEEL_TORQUE_LIMIT, _WHEEL_TORQUE_LIMIT)
 
         # --- Leg cascaded position → velocity → torque controller ---
@@ -145,7 +146,7 @@ class TWMRLegFlat(MjxEnv):
         actual_leg_pos = state.data.qpos[_LEG_QPOS_IDX]
         actual_leg_vel = state.data.qvel[_LEG_QVEL_IDX]
         # Outer loop: position error → desired velocity
-        desired_leg_vel = _LEG_POS_KP * (desired_leg_pos - actual_leg_pos) - _LEG_POS_KD * actual_leg_vel
+        desired_leg_vel = _LEG_POS_KP * (desired_leg_pos - actual_leg_pos) #- _LEG_POS_KD * actual_leg_vel
         desired_leg_vel = jp.clip(desired_leg_vel, -_LEG_MAX_VEL_CMD, _LEG_MAX_VEL_CMD)
         # Inner loop: velocity error → torque
         leg_vel_err = desired_leg_vel - actual_leg_vel
