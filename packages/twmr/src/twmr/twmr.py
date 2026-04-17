@@ -39,6 +39,9 @@ _LEG_MAX_VEL_CMD = 10.0          # rad/s clamp on outer loop output
 _LEG_QPOS_IDX = jp.array([8, 12, 16, 20])
 _LEG_QVEL_IDX = jp.array([7, 11, 15, 19])
 
+# Wheel encoder qpos indices (hinge joints after 7-dim freejoint)
+_WHEEL_QPOS_IDX = jp.array([7, 11, 15, 19])
+
 
 # def default_vision_config() -> config_dict.ConfigDict:
 #     return config_dict.create(
@@ -83,10 +86,8 @@ class TWMRLegFlat(MjxEnv):
         self._mj_model.opt.timestep = self.sim_dt  # set BEFORE put_model
         self._mjx_model = mjx.put_model(self._mj_model, impl=self._config.impl)  # type: ignore
 
-        # TODO: figure out vision with the madrona batch renderer
-
-        # TODO: what does this do for us exactly?
-        # self._root_body_id = self._mj_model.body("root").id
+        # Cache IMU site ID for projected gravity computation
+        self._imu_site_id = self._mj_model.site("root_site").id
 
     def reset(self, rng: JaxArray) -> State:
         # TODO: randomize initial state (qpos, qvel)
@@ -116,7 +117,13 @@ class TWMRLegFlat(MjxEnv):
             "max_x_dist":                jp.array(0.0),
         }
 
-        info = {"rng": rng, "max_x": data.qpos[0]}
+        info = {
+            "rng": rng,
+            "max_x": data.qpos[0],
+            "prev_wheel_pos": data.qpos[_WHEEL_QPOS_IDX],
+            "prev_leg_pos": data.qpos[_LEG_QPOS_IDX],
+            "prev_action": jp.zeros(self.action_size),
+        }
 
         obs = self._get_obs(data, info)
 
@@ -150,8 +157,8 @@ class TWMRLegFlat(MjxEnv):
         desired_leg_vel = jp.clip(desired_leg_vel, -_LEG_MAX_VEL_CMD, _LEG_MAX_VEL_CMD)
         # Inner loop: velocity error → torque
         leg_vel_err = desired_leg_vel - actual_leg_vel
-        # leg_torque = _LEG_VEL_KP * leg_vel_err
-        leg_torque = jp.full(4, -5.0)
+        leg_torque = _LEG_VEL_KP * leg_vel_err
+        # leg_torque = jp.full(4, -5.0)
         leg_torque = jp.clip(leg_torque, -_LEG_TORQUE_LIMIT, _LEG_TORQUE_LIMIT)
 
         # Assemble ctrl: actuator order is [4 wheels, 4 legs]
@@ -172,7 +179,14 @@ class TWMRLegFlat(MjxEnv):
         # ── Track max forward distance (delta trick: sum of deltas = final max) ─
         new_max_x = jp.maximum(state.info["max_x"], data.qpos[0])
         delta_max_x = new_max_x - state.info["max_x"]
-        info = {**state.info, "max_x": new_max_x}
+        info = {
+            **state.info,
+            "max_x": new_max_x,
+            # Store pre-step encoder positions for discrete velocity computation
+            "prev_wheel_pos": state.data.qpos[_WHEEL_QPOS_IDX],
+            "prev_leg_pos": state.data.qpos[_LEG_QPOS_IDX],
+            "prev_action": action,
+        }
 
         obs  = self._get_obs(data, info)
         done = jp.isnan(data.qpos).any() | jp.isnan(data.qvel).any()
@@ -196,12 +210,28 @@ class TWMRLegFlat(MjxEnv):
         )
 
     def _get_obs(self, data: mjx.Data, info: dict[str, Any]) -> JaxArray:
-        # TODO: center of mass dynamics
-        qpos = data.qpos
-        # print(f"==>> qpos: {qpos}")
-        qvel = data.qvel
-        # print(f"==>> qvel: {qvel}")
-        return jp.concatenate([qpos, qvel])
+        # IMU sensors: proper acceleration (includes gravity) and angular velocity
+        accel = mjx_env.get_sensor_data(self.mj_model, data, "root_acc")   # 3
+        gyro = mjx_env.get_sensor_data(self.mj_model, data, "root_gyro")   # 3
+
+        # Projected gravity: world [0,0,-1] rotated into body frame
+        # site_xmat is stored as a flattened 9-element row-major 3x3 matrix
+        imu_rot = data.site_xmat[self._imu_site_id].reshape(3, 3) # Projected gravity. IMPORTANT: THIS IS THE TRUE ROBOT ORIENTATION (TDLR: ADD NOISE OR DRIFT BEFORE TRYING SIM TO REAL TRANSFER)
+        gravity = imu_rot.T @ jp.array([0.0, 0.0, -1.0])                   # 3
+
+        # Leg encoder positions
+        leg_pos = data.qpos[_LEG_QPOS_IDX]                                 # 4
+
+        # Encoder velocities via discrete differentiation at ctrl_dt rate
+        wheel_vel = (data.qpos[_WHEEL_QPOS_IDX] - info["prev_wheel_pos"]) / self.dt  # 4
+        leg_vel = (data.qpos[_LEG_QPOS_IDX] - info["prev_leg_pos"]) / self.dt        # 4
+
+        # Previous action
+        prev_action = info["prev_action"]                                   # 8
+
+        return jp.concatenate([
+            accel, gyro, gravity, leg_pos, wheel_vel, leg_vel, prev_action,
+        ])
 
     def _compute_reward_and_metrics(self) -> JaxArray:
         # TODO: this function will compute the reward and set both metrics and info
