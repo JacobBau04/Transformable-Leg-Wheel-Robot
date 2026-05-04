@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Any
+import jax
 
 import jax.numpy as jp
 from jax import Array as JaxArray
@@ -13,6 +14,24 @@ from mujoco_playground._src.dm_control_suite import common
 
 ConfigOverridesDict = dict[str, str | int | list]
 _XML_PATH = Path(__file__).parent.parent.parent / "assets" / "trans_wheel_robo2_2FLAT.xml"
+
+# RMA / privileged-observation sizes
+_NUM_WHEELS = 4
+_NUM_LEGS = 4
+_NUM_ACTUATORS = 8   # 4 wheel + 4 leg motors
+
+# simplified privileged obs layout:
+# friction (1)
+# motor strengths (8)
+# slope angle (1)
+_PRIV_GLOBAL_SIZE = 1 + 8 + 1
+_PRIV_OBS_SIZE = _PRIV_GLOBAL_SIZE # = 10; no privileged contacts for now, but could add in the future if needed
+
+# domain-randomization ranges
+_FRICTION_RANGE = (0.7, 1.3)
+_WHEEL_MOTOR_RANGE = (0.85, 1.15)
+_LEG_MOTOR_RANGE = (0.85, 1.15)
+_SLOPE_RANGE = (-0.12, 0.12)  # slope angle (radians) *prob change later for rough terrain
 
 # Reward constants (matched to DemoModes.ipynb)
 _LEG_MIN = -1.047                            # rad: contracted position
@@ -43,18 +62,6 @@ _LEG_QVEL_IDX = jp.array([7, 11, 15, 19])
 _WHEEL_QPOS_IDX = jp.array([7, 11, 15, 19])
 
 
-# def default_vision_config() -> config_dict.ConfigDict:
-#     return config_dict.create(
-#         gpu_id=0,
-#         render_batch_size=512,
-#         render_width=64,
-#         render_height=64,
-#         enable_geom_groups=[0, 1, 2],
-#         use_rasterizer=False,
-#         history=3,
-#     )
-
-
 # TODO: check all of these default values
 def default_config() -> config_dict.ConfigDict:
     return config_dict.create(
@@ -65,8 +72,8 @@ def default_config() -> config_dict.ConfigDict:
         vision=False,
         # vision_config=default_vision_config(),
         impl="warp",  # TODO: cartpole uses jax
-        nconmax=100,  # allow collisions
-        njmax=500,  # allow complex joints
+        naconmax=100,  # GLOBAL contact budget across all Warp worlds (scale with NUM_ENVS at training time)
+        njmax=500,     # per-env constraint budget (stacked by vmap; ~20-30 constraints/env in practice)
     )
 
 
@@ -89,22 +96,85 @@ class TWMRLegFlat(MjxEnv):
         # Cache IMU site ID for projected gravity computation
         self._imu_site_id = self._mj_model.site("root_site").id
 
-    def reset(self, rng: JaxArray) -> State:
-        # TODO: randomize initial state (qpos, qvel)
-        # qpos = qpos.at[2].set(0.2)
-        # qpos = qpos + 0.01 * jax.random.normal(rng_init, qpos.shape)
+    def _sample_domain_params(self, rng: JaxArray) -> tuple[JaxArray, dict[str, JaxArray]]:
+        rng, r_mu, r_wheel, r_leg, r_slope = jax.random.split(rng, 5)
 
-        # Initially reset to the original position
-        # qpos = jp.zeros(self.mjx_model.nq)
-        # qvel = jp.zeros(self.mjx_model.nv)
+        friction = jax.random.uniform(
+            r_mu, (), minval=_FRICTION_RANGE[0], maxval=_FRICTION_RANGE[1]
+        )
+
+        wheel_motor_strength = jax.random.uniform(
+            r_wheel, (_NUM_WHEELS,), minval=_WHEEL_MOTOR_RANGE[0], maxval=_WHEEL_MOTOR_RANGE[1]
+        )
+
+        leg_motor_strength = jax.random.uniform(
+            r_leg, (_NUM_LEGS,), minval=_LEG_MOTOR_RANGE[0], maxval=_LEG_MOTOR_RANGE[1]
+        )
+
+        slope_angle = jax.random.uniform(
+            r_slope, (), minval=_SLOPE_RANGE[0], maxval=_SLOPE_RANGE[1]
+        )
+
+        params = {
+            "friction": friction,
+            "wheel_motor_strength": wheel_motor_strength,
+            "leg_motor_strength": leg_motor_strength,
+            "motor_strengths": jp.concatenate([wheel_motor_strength, leg_motor_strength]),
+            "slope_angle": slope_angle,
+        }
+        return rng, params
+    
+    def _get_privileged_globals(self, info: dict[str, Any]) -> JaxArray:
+        return jp.concatenate([
+            jp.array([info["friction"]]),           # (1)
+            info["motor_strengths"],                # (8)
+            jp.array([info["slope_angle"]]),        # (1)
+        ])
+    
+    def _get_privileged_obs(self, data: mjx.Data, info: dict[str, Any]) -> JaxArray:
+        return self._get_privileged_globals(info)
+    
+    def _get_teacher_obs(self, data: mjx.Data, info: dict[str, Any]) -> JaxArray:
+        student_obs = self._get_obs(data, info)
+        privileged_obs = self._get_privileged_obs(data, info)
+        return jp.concatenate([student_obs, privileged_obs])
+
+    def reset(self, rng: JaxArray) -> State:
+        rng, r_x, r_y, r_z, r_yaw, r_leg, r_vel = jax.random.split(rng, 7)
+
+        qpos = self.mjx_model.qpos0
+        qvel = jp.zeros(self.mjx_model.nv)
+
+        # root position
+        qpos = qpos.at[0].add(jax.random.uniform(r_x, (), minval=-0.03, maxval=0.03))
+        qpos = qpos.at[1].add(jax.random.uniform(r_y, (), minval=-0.03, maxval=0.03))
+        qpos = qpos.at[2].add(jax.random.uniform(r_z, (), minval=-0.005, maxval=0.005))
+
+        # root yaw quaternion, since XML default is identity
+        yaw = jax.random.uniform(r_yaw, (), minval=-0.15, maxval=0.15)
+        cy = jp.cos(yaw / 2.0)
+        sy = jp.sin(yaw / 2.0)
+        qpos = qpos.at[3:7].set(jp.array([cy, 0.0, 0.0, sy]))
+
+        # sample one leg angle per wheel around a nominal stance
+        nominal_leg = jp.array([1.0, 1.0, 1.0, 1.0])  # example
+        leg_noise = jax.random.uniform(r_leg, (4,), minval=-0.1, maxval=0.1)
+        leg_vals = jp.clip(nominal_leg + leg_noise, _LEG_MIN, _LEG_MAX)
+
+        # set actuated extension joints
+        qpos = qpos.at[_LEG_QPOS_IDX].set(leg_vals)
+
+        qvel = qvel + 0.05 * jax.random.normal(r_vel, qvel.shape)
+
+        rng, params = self._sample_domain_params(rng)
 
         data = mjx_env.make_data(
             self.mj_model,
-            # qpos=qpos,
-            # qvel=qvel,
+            qpos=qpos,
+            qvel=qvel,
             impl=self.mjx_model.impl.value,
-            nconmax=self._config.nconmax,  # type: ignore
-            njmax=self._config.njmax,  # type: ignore
+            naconmax=self._config.naconmax,
+            njmax=self._config.njmax,
         )
 
         data = mjx.forward(self.mjx_model, data)
@@ -115,7 +185,12 @@ class TWMRLegFlat(MjxEnv):
             "reward/ctrl_cost":          jp.array(0.0),
             "reward/leg_extension_cost": jp.array(0.0),
             "max_x_dist":                jp.array(0.0),
+            "done/height":               jp.array(0.0),
+            "done/tilt":                 jp.array(0.0),
+            "done/angvel":               jp.array(0.0),
+            "done/nan":                  jp.array(0.0),
         }
+        
 
         info = {
             "rng": rng,
@@ -123,9 +198,23 @@ class TWMRLegFlat(MjxEnv):
             "prev_wheel_pos": data.qpos[_WHEEL_QPOS_IDX],
             "prev_leg_pos": data.qpos[_LEG_QPOS_IDX],
             "prev_action": jp.zeros(self.action_size),
+
+            # privileged episode-global params
+            "friction": params["friction"],
+            "wheel_motor_strength": params["wheel_motor_strength"],
+            "leg_motor_strength": params["leg_motor_strength"],
+            "motor_strengths": params["motor_strengths"],
+            "slope_angle": params["slope_angle"],
         }
 
-        obs = self._get_obs(data, info)
+        student_obs = self._get_obs(data, info)
+        priv_obs = self._get_privileged_obs(data, info)
+        teacher_obs = jp.concatenate([student_obs, priv_obs])
+
+        info["student_obs"] = student_obs
+        info["privileged_obs"] = priv_obs
+
+        obs = teacher_obs
 
         return mjx_env.State(
             data=data,
@@ -146,6 +235,9 @@ class TWMRLegFlat(MjxEnv):
         wheel_vel_err = desired_wheel_vel - actual_wheel_vel
         wheel_torque = _WHEEL_KP * wheel_vel_err - _WHEEL_KD * actual_wheel_vel
         # wheel_torque = jp.full(4, 5.0)
+        
+        # Apply sampled motor-strength randomization
+        wheel_torque = state.info["wheel_motor_strength"] * wheel_torque
         wheel_torque = jp.clip(wheel_torque, -_WHEEL_TORQUE_LIMIT, _WHEEL_TORQUE_LIMIT)
 
         # --- Leg cascaded position → velocity → torque controller ---
@@ -158,6 +250,9 @@ class TWMRLegFlat(MjxEnv):
         # Inner loop: velocity error → torque
         leg_vel_err = desired_leg_vel - actual_leg_vel
         leg_torque = _LEG_VEL_KP * leg_vel_err
+
+        leg_torque = state.info["leg_motor_strength"] * leg_torque # apply domain-randomized motor strength
+
         # leg_torque = jp.full(4, -5.0)
         leg_torque = jp.clip(leg_torque, -_LEG_TORQUE_LIMIT, _LEG_TORQUE_LIMIT)
 
@@ -188,16 +283,38 @@ class TWMRLegFlat(MjxEnv):
             "prev_action": action,
         }
 
-        obs  = self._get_obs(data, info)
-        done = jp.isnan(data.qpos).any() | jp.isnan(data.qvel).any()
-        done = done.astype(float)
+        student_obs = self._get_obs(data, info)
+        priv_obs = self._get_privileged_obs(data, info)
+        teacher_obs = jp.concatenate([student_obs, priv_obs])
+
+        info["student_obs"] = student_obs
+        info["privileged_obs"] = priv_obs
+
+        obs = teacher_obs
+        base_height = data.qpos[2]
+
+        imu_rot = data.site_xmat[self._imu_site_id].reshape(3, 3)
+        gravity = imu_rot.T @ jp.array([0.0, 0.0, -1.0])
+
+        gyro = mjx_env.get_sensor_data(self.mj_model, data, "root_gyro")
+
+        height_fail = base_height < 0 #0.045
+        tilt_fail = gravity[2] > 10 #-0.6
+        angvel_fail = jp.linalg.norm(gyro) > 20.0
+        nan_fail = jp.isnan(data.qpos).any() | jp.isnan(data.qvel).any()
+
+        done = (height_fail | tilt_fail | angvel_fail | nan_fail).astype(float)
 
         metrics = {
-            "reward":                    reward,
-            "reward/forward_vel":        frwd_reward,
-            "reward/ctrl_cost":          ctrl_cost,
+            "reward": reward,
+            "reward/forward_vel": frwd_reward,
+            "reward/ctrl_cost": ctrl_cost,
             "reward/leg_extension_cost": leg_ext_cost,
-            "max_x_dist":                delta_max_x,
+            "max_x_dist": delta_max_x,
+            "done/height": height_fail.astype(float),
+            "done/tilt": tilt_fail.astype(float),
+            "done/angvel": angvel_fail.astype(float),
+            "done/nan": nan_fail.astype(float),
         }
 
         return mjx_env.State(
@@ -252,6 +369,10 @@ class TWMRLegFlat(MjxEnv):
     @property
     def mjx_model(self) -> MjxModel:
         return self._mjx_model
+    
+    @property
+    def privileged_obs_size(self) -> int:
+        return _PRIV_OBS_SIZE
 
 
 dm_control_suite.register_environment(
@@ -259,3 +380,4 @@ dm_control_suite.register_environment(
     env_class=TWMRLegFlat,
     cfg_class=default_config,
 )
+
