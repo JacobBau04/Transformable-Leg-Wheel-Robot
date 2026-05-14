@@ -13,7 +13,17 @@ from mujoco_playground._src import reward as reward_utils
 from mujoco_playground._src.dm_control_suite import common
 
 ConfigOverridesDict = dict[str, str | int | list]
-_XML_PATH = Path(__file__).parent.parent.parent / "assets" / "trans_wheel_robo2_2FLAT.xml"
+
+# Terrain registry. Each TWMR* subclass sets `_terrain` to one of these keys;
+# `__init__` resolves the XML file and (for TERR) loads the heightfield binary
+# into the assets dict. Both XMLs declare the floor geom first with name
+# "ground" so `_FLOOR_GEOM_ID = 0` and the `geom("ground")` lookup work on
+# either terrain — see also the rename in trans_wheel_robo2_2GEN_TERR.xml.
+_XML_DIR = Path(__file__).parent.parent.parent / "assets"
+_XML_FILENAME_BY_TERRAIN = {
+    "FLAT": "trans_wheel_robo2_2FLAT.xml",
+    "TERR": "trans_wheel_robo2_2GEN_TERR.xml",
+}
 
 # RMA / privileged-observation sizes
 _NUM_WHEELS = 4
@@ -23,15 +33,19 @@ _NUM_ACTUATORS = 8   # 4 wheel + 4 leg motors
 # simplified privileged obs layout:
 # friction (1)
 # motor strengths (8)
-# slope angle (1)
-_PRIV_GLOBAL_SIZE = 1 + 8 + 1
-_PRIV_OBS_SIZE = _PRIV_GLOBAL_SIZE # = 10; no privileged contacts for now, but could add in the future if needed
+_PRIV_GLOBAL_SIZE = 1 + 8
+_PRIV_OBS_SIZE = _PRIV_GLOBAL_SIZE # = 9; no privileged contacts for now, but could add in the future if needed
 
 # domain-randomization ranges
 _FRICTION_RANGE = (0.7, 1.3)
 _WHEEL_MOTOR_RANGE = (0.85, 1.15)
 _LEG_MOTOR_RANGE = (0.85, 1.15)
-_SLOPE_RANGE = (-0.12, 0.12)  # slope angle (radians) *prob change later for rough terrain
+
+# ID of the floor plane in the XML. The floor geom is named "ground" and
+# declared first in both trans_wheel_robo2_2FLAT.xml and
+# trans_wheel_robo2_2GEN_TERR.xml, so MuJoCo assigns it id 0. __init__ asserts
+# this on both terrains.
+_FLOOR_GEOM_ID = 0
 
 # Reward constants (matched to DemoModes.ipynb)
 _LEG_MIN = -1.047                            # rad: contracted position
@@ -78,6 +92,9 @@ def default_config() -> config_dict.ConfigDict:
 
 
 class TWMRLegFlat(MjxEnv):
+    # Selects which XML this env loads. Subclasses (e.g. TWMRLegTerr) override.
+    _terrain: str = "FLAT"
+
     def __init__(
         self,
         # Task specific config
@@ -86,33 +103,58 @@ class TWMRLegFlat(MjxEnv):
     ):
         super().__init__(config, config_overrides)
 
-        self._xml_path = _XML_PATH.as_posix()
-        model_xml = _XML_PATH.read_text()
-        self._model_assets = common.get_assets()
-        self._mj_model: MjModel = MjModel.from_xml_string(model_xml, self._model_assets)
+        xml_path = _XML_DIR / _XML_FILENAME_BY_TERRAIN[self._terrain]
+        self._xml_path = xml_path.as_posix()
+        model_xml = xml_path.read_text()
+
+        # `from_xml_string` does NOT auto-resolve the XML's `compiler meshdir`
+        # directive, so any `file=…` asset (e.g. the heightfield binary on TERR)
+        # has to be in the assets dict explicitly. FLAT has no such files.
+        assets = dict(common.get_assets())
+        if self._terrain == "TERR":
+            assets["terrain_height_go.bin"] = (
+                _XML_DIR / "meshes" / "terrain_height_go.bin"
+            ).read_bytes()
+        self._model_assets = assets
+        self._mj_model: MjModel = MjModel.from_xml_string(model_xml, assets)
         self._mj_model.opt.timestep = self.sim_dt  # set BEFORE put_model
         self._mjx_model = mjx.put_model(self._mj_model, impl=self._config.impl)  # type: ignore
 
         # Cache IMU site ID for projected gravity computation
         self._imu_site_id = self._mj_model.site("root_site").id
 
-    def _sample_domain_params(self, rng: JaxArray) -> tuple[JaxArray, dict[str, JaxArray]]:
-        rng, r_mu, r_wheel, r_leg, r_slope = jax.random.split(rng, 5)
-
-        friction = jax.random.uniform(
-            r_mu, (), minval=_FRICTION_RANGE[0], maxval=_FRICTION_RANGE[1]
+        # Cache the floor geom id + its nominal sliding-friction coefficient.
+        # `domain_randomize_model` perturbs geom_friction[_FLOOR_GEOM_ID, 0]
+        # and `_sample_domain_params` divides the per-env value by this
+        # nominal to recover the friction *scale* exposed to the policy.
+        assert self._mj_model.geom("ground").id == _FLOOR_GEOM_ID, (
+            f"ground geom id changed: expected {_FLOOR_GEOM_ID}, "
+            f"got {self._mj_model.geom('ground').id}"
+        )
+        self._nominal_floor_friction = float(
+            self._mj_model.geom_friction[_FLOOR_GEOM_ID, 0]
         )
 
+    def _sample_domain_params(self, rng: JaxArray) -> tuple[JaxArray, dict[str, JaxArray]]:
+        rng, r_wheel, r_leg = jax.random.split(rng, 3)
+
+        # Motor strengths are applied at the torque level inside `step`, so they
+        # stay sampled here (per-episode, per-env) from the env's rng.
         wheel_motor_strength = jax.random.uniform(
             r_wheel, (_NUM_WHEELS,), minval=_WHEEL_MOTOR_RANGE[0], maxval=_WHEEL_MOTOR_RANGE[1]
         )
-
         leg_motor_strength = jax.random.uniform(
             r_leg, (_NUM_LEGS,), minval=_LEG_MOTOR_RANGE[0], maxval=_LEG_MOTOR_RANGE[1]
         )
 
-        slope_angle = jax.random.uniform(
-            r_slope, (), minval=_SLOPE_RANGE[0], maxval=_SLOPE_RANGE[1]
+        # Friction is applied at the *model* level by `domain_randomize_model`
+        # (the wrapper swaps per-env models onto `self._mjx_model`). Recover
+        # it from the current model so the privileged observation always
+        # reflects what physics actually uses. When the env is unwrapped
+        # (eval/render), this resolves to 1.0.
+        friction = (
+            self.mjx_model.geom_friction[_FLOOR_GEOM_ID, 0]
+            / self._nominal_floor_friction
         )
 
         params = {
@@ -120,16 +162,14 @@ class TWMRLegFlat(MjxEnv):
             "wheel_motor_strength": wheel_motor_strength,
             "leg_motor_strength": leg_motor_strength,
             "motor_strengths": jp.concatenate([wheel_motor_strength, leg_motor_strength]),
-            "slope_angle": slope_angle,
         }
         return rng, params
-    
+
     def _get_privileged_globals(self, info: dict[str, Any]) -> JaxArray:
         return jp.concatenate([
             jp.array([info["friction"]]),           # (1)
             info["motor_strengths"],                # (8)
-            jp.array([info["slope_angle"]]),        # (1)
-        ])
+        ])                                          # total: 9
     
     def _get_privileged_obs(self, data: mjx.Data, info: dict[str, Any]) -> JaxArray:
         return self._get_privileged_globals(info)
@@ -204,7 +244,6 @@ class TWMRLegFlat(MjxEnv):
             "wheel_motor_strength": params["wheel_motor_strength"],
             "leg_motor_strength": params["leg_motor_strength"],
             "motor_strengths": params["motor_strengths"],
-            "slope_angle": params["slope_angle"],
         }
 
         student_obs = self._get_obs(data, info)
@@ -299,7 +338,10 @@ class TWMRLegFlat(MjxEnv):
         gyro = mjx_env.get_sensor_data(self.mj_model, data, "root_gyro")
 
         height_fail = base_height < 0 #0.045
-        tilt_fail = gravity[2] > 10 #-0.6
+        # gravity[2] is world `[0,0,-1]` rotated into body frame: -1 = upright,
+        # 0 = on its side (90° tilt), +1 = upside-down. Threshold -0.6 ≈ cos(127°)
+        # fires when the body z-axis tips more than ~53° from upright.
+        tilt_fail = gravity[2] > -0.6
         angvel_fail = jp.linalg.norm(gyro) > 20.0
         nan_fail = jp.isnan(data.qpos).any() | jp.isnan(data.qvel).any()
 
@@ -375,9 +417,62 @@ class TWMRLegFlat(MjxEnv):
         return _PRIV_OBS_SIZE
 
 
+def domain_randomize_model(
+    model: MjxModel, rng: JaxArray
+) -> tuple[MjxModel, MjxModel]:
+    """Per-env domain randomization of ground friction.
+
+    Signature matches the brax convention used by `wrap_for_brax_training`:
+    `rng` has a leading num_envs dim; the returned model has a matching leading
+    dim on `geom_friction`. The in_axes pytree marks that field as 0 (vmap
+    axis) and everything else as None.
+
+    The randomized value becomes observable via `state.info["friction"]`
+    because `TWMRLegFlat._sample_domain_params` derives it from
+    `self.mjx_model` (which the wrapper swaps per-env).
+    """
+
+    @jax.vmap
+    def _rand(rng):
+        # Floor friction: scale sliding coefficient (column 0) by U[_FRICTION_RANGE].
+        fric_scale = jax.random.uniform(
+            rng, (), minval=_FRICTION_RANGE[0], maxval=_FRICTION_RANGE[1]
+        )
+        new_geom_friction = model.geom_friction.at[_FLOOR_GEOM_ID, 0].multiply(
+            fric_scale
+        )
+        return new_geom_friction
+
+    new_geom_friction = _rand(rng)
+
+    in_axes = jax.tree_util.tree_map(lambda _x: None, model)
+    in_axes = in_axes.tree_replace({
+        "geom_friction": 0,
+    })
+
+    new_model = model.tree_replace({
+        "geom_friction": new_geom_friction,
+    })
+
+    return new_model, in_axes
+
+
+class TWMRLegTerr(TWMRLegFlat):
+    """Same env as TWMRLegFlat but loaded against the heightfield XML
+    (`trans_wheel_robo2_2GEN_TERR.xml`). All behavior comes from `TWMRLegFlat`;
+    only the `_terrain` class attribute changes which model is loaded."""
+
+    _terrain = "TERR"
+
+
 dm_control_suite.register_environment(
     env_name="TWMRLegFlat",
     env_class=TWMRLegFlat,
+    cfg_class=default_config,
+)
+dm_control_suite.register_environment(
+    env_name="TWMRLegTerr",
+    env_class=TWMRLegTerr,
     cfg_class=default_config,
 )
 
