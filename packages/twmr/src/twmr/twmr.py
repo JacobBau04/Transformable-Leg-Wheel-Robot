@@ -38,8 +38,12 @@ _PRIV_OBS_SIZE = _PRIV_GLOBAL_SIZE # = 9; no privileged contacts for now, but co
 
 # domain-randomization ranges
 _FRICTION_RANGE = (0.7, 1.3)
-_WHEEL_MOTOR_RANGE = (0.85, 1.15)
-_LEG_MOTOR_RANGE = (0.85, 1.15)
+# Motor-strength range widened 0.85-1.15 -> 0.8-1.2 for the hardware transfer.
+# On a voltage-controlled motor, an error in the torque<->voltage constant R/Kt
+# is a *multiplicative* torque error, i.e. exactly `motor_strength != 1`. The
+# wider range buys margin for imperfect R/Kt calibration on the real robot.
+_WHEEL_MOTOR_RANGE = (0.8, 1.2)
+_LEG_MOTOR_RANGE = (0.8, 1.2)
 
 # ID of the floor plane in the XML. The floor geom is named "ground" and
 # declared first in both trans_wheel_robo2_2FLAT.xml and
@@ -76,6 +80,83 @@ _LEG_QVEL_IDX = jp.array([7, 11, 15, 19])
 _WHEEL_QPOS_IDX = jp.array([7, 11, 15, 19])
 
 
+# ── student_obs layout (must match _get_obs) ──────────────────────────────
+# accel(3) gyro(3) gravity(3) leg_pos(4) wheel_vel(4) leg_vel(4) prev_action(8)
+_STUDENT_OBS_SIZE = 3 + 3 + 3 + 4 + 4 + 4 + 8   # = 29
+_OBS_ACCEL       = slice(0, 3)
+_OBS_GYRO        = slice(3, 6)
+_OBS_GRAVITY     = slice(6, 9)
+_OBS_LEG_POS     = slice(9, 13)
+_OBS_WHEEL_VEL   = slice(13, 17)
+_OBS_LEG_VEL     = slice(17, 21)
+_OBS_PREV_ACTION = slice(21, 29)
+
+
+def add_obs_noise(
+    student_obs: JaxArray,
+    rng: JaxArray,
+    noise_cfg: config_dict.ConfigDict,
+    biases: dict[str, JaxArray],
+) -> JaxArray:
+    """Add IMU/encoder noise to a single 29-dim student observation.
+
+    Pure function (no `self`) so it can be unit-tested on CPU without building
+    the env. The caller vmaps it across envs.
+
+    Sim-to-real rationale: the policy + adaptation module were trained on
+    perfectly clean sensors, but a real IMU has per-step Gaussian noise plus a
+    run-constant bias, and finite-differenced encoder velocities are noisy. We
+    inject both here so phase 1 (pi) and phase 2 (phi) learn to be robust to them.
+
+    Applied ONLY to the 29-dim student slice — never the privileged slice, which
+    is phase 2's regression target. `prev_action` (21:29) is left exact because
+    it is a known command, not a sensor reading.
+
+    biases : per-episode constants {'accel'(3), 'gyro'(3), 'gravity'(3)}.
+    """
+    std = jp.concatenate([
+        jp.full((3,), noise_cfg.accel_std),
+        jp.full((3,), noise_cfg.gyro_std),
+        jp.full((3,), noise_cfg.gravity_std),
+        jp.full((4,), noise_cfg.leg_pos_std),
+        jp.full((4,), noise_cfg.wheel_vel_std),
+        jp.full((4,), noise_cfg.leg_vel_std),
+        jp.zeros((8,)),                       # prev_action: exact command
+    ])
+    per_step = jax.random.normal(rng, (_STUDENT_OBS_SIZE,)) * std
+
+    bias = jp.concatenate([
+        biases["accel"], biases["gyro"], biases["gravity"],
+        jp.zeros((4 + 4 + 4 + 8,)),
+    ])
+
+    noisy = student_obs + per_step + bias
+
+    # gravity is a unit direction; renormalize after perturbation so the policy
+    # still receives a (noisy) orientation, not a scaled vector.
+    g = noisy[_OBS_GRAVITY]
+    g = g / (jp.linalg.norm(g) + 1e-8)
+    noisy = noisy.at[_OBS_GRAVITY].set(g)
+    return noisy
+
+
+def apply_action_delay(
+    buffer: JaxArray, action: JaxArray
+) -> tuple[JaxArray, JaxArray]:
+    """One-tick-or-more actuation latency via a FIFO of past commands.
+
+    buffer : (delay, action_dim). Returns (applied, new_buffer) where `applied`
+    is the oldest queued command (what reaches the motors this tick) and
+    `new_buffer` drops it and appends the freshly-computed `action`.
+
+    Models comms + driver latency: the torque computed at tick t lands `delay`
+    ticks later. A policy that never saw this can go unstable on hardware.
+    """
+    applied = buffer[0]
+    new_buffer = jp.concatenate([buffer[1:], action[None]], axis=0)
+    return applied, new_buffer
+
+
 # TODO: check all of these default values
 def default_config() -> config_dict.ConfigDict:
     return config_dict.create(
@@ -88,6 +169,27 @@ def default_config() -> config_dict.ConfigDict:
         impl="warp",  # TODO: cartpole uses jax
         naconmax=100,  # GLOBAL contact budget across all Warp worlds (scale with NUM_ENVS at training time)
         njmax=500,     # per-env constraint budget (stacked by vmap; ~20-30 constraints/env in practice)
+        # ── Sim-to-real robustness (RMA hardware transfer) ──────────────────
+        # Observation noise is applied ONLY to the 29-dim student slice (see
+        # add_obs_noise); the 9-dim privileged slice stays clean because it is
+        # phase 2's regression target. All std values are in physical units —
+        # tune against bench IMU/encoder data. Disable for clean-baseline /
+        # ceiling evals via config_overrides={"obs_noise": {"enable": False}}.
+        obs_noise=config_dict.create(
+            enable=True,
+            accel_std=0.5,         # m/s^2, per-step
+            accel_bias_std=0.2,    # m/s^2, per-episode constant
+            gyro_std=0.05,         # rad/s, per-step
+            gyro_bias_std=0.02,    # rad/s, per-episode constant
+            gravity_std=0.02,      # unit-vec perturbation, per-step (renormalized)
+            tilt_bias_std=0.0524,  # rad (~3 deg), per-episode orientation offset
+            leg_pos_std=0.005,     # rad, per-step (encoder quantization)
+            wheel_vel_std=0.1,     # rad/s, per-step (finite-diff amplified)
+            leg_vel_std=0.1,       # rad/s, per-step
+        ),
+        # Actuation latency: command computed at tick t drives physics at
+        # t+action_delay_steps. 1 step = 20 ms at ctrl_dt=0.02. Set 0 to disable.
+        action_delay_steps=1,
     )
 
 
@@ -157,11 +259,29 @@ class TWMRLegFlat(MjxEnv):
             / self._nominal_floor_friction
         )
 
+        # Per-episode observation-noise biases (constant within an episode,
+        # resampled each reset). Only consume rng when noise is enabled so a
+        # clean-baseline run reproduces the original sampling stream exactly.
+        nc = self._config.obs_noise
+        if nc.enable:
+            rng, r_bias = jax.random.split(rng)
+            r_ba, r_bg, r_bt = jax.random.split(r_bias, 3)
+            accel_bias = jax.random.normal(r_ba, (3,)) * nc.accel_bias_std
+            gyro_bias = jax.random.normal(r_bg, (3,)) * nc.gyro_bias_std
+            gravity_bias = jax.random.normal(r_bt, (3,)) * nc.tilt_bias_std
+        else:
+            accel_bias = jp.zeros(3)
+            gyro_bias = jp.zeros(3)
+            gravity_bias = jp.zeros(3)
+
         params = {
             "friction": friction,
             "wheel_motor_strength": wheel_motor_strength,
             "leg_motor_strength": leg_motor_strength,
             "motor_strengths": jp.concatenate([wheel_motor_strength, leg_motor_strength]),
+            "obs_bias_accel": accel_bias,
+            "obs_bias_gyro": gyro_bias,
+            "obs_bias_gravity": gravity_bias,
         }
         return rng, params
 
@@ -178,6 +298,27 @@ class TWMRLegFlat(MjxEnv):
         student_obs = self._get_obs(data, info)
         privileged_obs = self._get_privileged_obs(data, info)
         return jp.concatenate([student_obs, privileged_obs])
+
+    def _maybe_add_obs_noise(
+        self, student_obs: JaxArray, info: dict[str, Any]
+    ) -> JaxArray:
+        """Apply IMU/encoder noise to the student obs, advancing info['rng'].
+
+        No-op (and rng untouched) when obs_noise.enable is False so a clean
+        baseline reproduces the original observation exactly. Mutates the passed
+        `info` dict in place (info['rng']).
+        """
+        nc = self._config.obs_noise
+        if not nc.enable:
+            return student_obs
+        rng, k = jax.random.split(info["rng"])
+        info["rng"] = rng
+        biases = {
+            "accel": info["obs_bias_accel"],
+            "gyro": info["obs_bias_gyro"],
+            "gravity": info["obs_bias_gravity"],
+        }
+        return add_obs_noise(student_obs, k, nc, biases)
 
     def reset(self, rng: JaxArray) -> State:
         rng, r_x, r_y, r_z, r_yaw, r_leg, r_vel = jax.random.split(rng, 7)
@@ -244,9 +385,21 @@ class TWMRLegFlat(MjxEnv):
             "wheel_motor_strength": params["wheel_motor_strength"],
             "leg_motor_strength": params["leg_motor_strength"],
             "motor_strengths": params["motor_strengths"],
+
+            # per-episode obs-noise biases (constant within episode)
+            "obs_bias_accel": params["obs_bias_accel"],
+            "obs_bias_gyro": params["obs_bias_gyro"],
+            "obs_bias_gravity": params["obs_bias_gravity"],
+
+            # FIFO of past commands for actuation latency (zeros at start ->
+            # the first action_delay_steps ticks drive physics with zero action).
+            "action_buffer": jp.zeros(
+                (self._config.action_delay_steps, self.action_size)
+            ),
         }
 
         student_obs = self._get_obs(data, info)
+        student_obs = self._maybe_add_obs_noise(student_obs, info)  # mutates info["rng"]
         priv_obs = self._get_privileged_obs(data, info)
         teacher_obs = jp.concatenate([student_obs, priv_obs])
 
@@ -265,22 +418,35 @@ class TWMRLegFlat(MjxEnv):
         )
 
     def step(self, state: State, action: JaxArray) -> State:
-        # ── Decode policy action [8] into ctrl torques [8] via PD ────────
-        # action[0:4] → desired wheel speeds,  action[4:8] → desired leg positions
+        # ── Actuation latency ────────────────────────────────────────────
+        # The command computed this tick reaches the motors action_delay_steps
+        # ticks later (comms + driver lag). `applied_action` is what physics
+        # actually sees now; `action` (the fresh command) is queued and also
+        # stored as prev_action in the obs (the policy knows what it commanded).
+        if self._config.action_delay_steps > 0:
+            applied_action, new_action_buffer = apply_action_delay(
+                state.info["action_buffer"], action
+            )
+        else:
+            applied_action = action
+            new_action_buffer = state.info["action_buffer"]  # (0, 8), unchanged
+
+        # ── Decode applied action [8] into ctrl torques [8] via PD ───────
+        # applied_action[0:4] → desired wheel speeds, [4:8] → desired leg positions
 
         # --- Wheel velocity P(D) controller ---
-        desired_wheel_vel = action[:4] * _WHEEL_MAX_SPEED          # [-20, 20] rad/s
+        desired_wheel_vel = applied_action[:4] * _WHEEL_MAX_SPEED   # [-20, 20] rad/s
         actual_wheel_vel = state.data.qvel[_WHEEL_QVEL_IDX]
         wheel_vel_err = desired_wheel_vel - actual_wheel_vel
         wheel_torque = _WHEEL_KP * wheel_vel_err - _WHEEL_KD * actual_wheel_vel
         # wheel_torque = jp.full(4, 5.0)
-        
+
         # Apply sampled motor-strength randomization
         wheel_torque = state.info["wheel_motor_strength"] * wheel_torque
         wheel_torque = jp.clip(wheel_torque, -_WHEEL_TORQUE_LIMIT, _WHEEL_TORQUE_LIMIT)
 
         # --- Leg cascaded position → velocity → torque controller ---
-        desired_leg_pos = _LEG_CENTER + action[4:] * _LEG_HALF_RANGE  # map [-1,1] to [min,max]
+        desired_leg_pos = _LEG_CENTER + applied_action[4:] * _LEG_HALF_RANGE  # map [-1,1] to [min,max]
         actual_leg_pos = state.data.qpos[_LEG_QPOS_IDX]
         actual_leg_vel = state.data.qvel[_LEG_QVEL_IDX]
         # Outer loop: position error → desired velocity
@@ -319,10 +485,12 @@ class TWMRLegFlat(MjxEnv):
             # Store pre-step encoder positions for discrete velocity computation
             "prev_wheel_pos": state.data.qpos[_WHEEL_QPOS_IDX],
             "prev_leg_pos": state.data.qpos[_LEG_QPOS_IDX],
-            "prev_action": action,
+            "prev_action": action,                 # commanded (not delayed)
+            "action_buffer": new_action_buffer,
         }
 
         student_obs = self._get_obs(data, info)
+        student_obs = self._maybe_add_obs_noise(student_obs, info)  # mutates info["rng"]
         priv_obs = self._get_privileged_obs(data, info)
         teacher_obs = jp.concatenate([student_obs, priv_obs])
 
